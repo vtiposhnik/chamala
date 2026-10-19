@@ -4,6 +4,8 @@ extends CharacterBody3D
 signal target_changed(target: WorldItem)
 signal notice(message: String)
 signal capture_changed(captured: bool)
+signal hit_confirmed(damage: float)
+signal parry_confirmed
 
 @export var move_speed: float = 5.5
 @export var acceleration: float = 24.0
@@ -11,12 +13,16 @@ signal capture_changed(captured: bool)
 @export var mouse_sensitivity: float = 0.0022
 @export var pickup_distance: float = 3.4
 @export var drop_distance: float = 1.5
+@export_range(0.05, 0.5) var pickup_radius: float = 0.24
+@export var push_force: float = 65.0
+@export var push_response: float = 18.0
 
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var head: Node3D = $Head
 @onready var inventory: Inventory = $Inventory
 @onready var equipped: EquippedWeapon = $Head/Camera3D/WeaponMount
 @onready var focus: FocusController = $Focus
+@onready var combat: CombatController = $Combat
 
 var target: WorldItem
 var motion: Vector3 = Vector3.ZERO
@@ -45,6 +51,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		pick_up_target()
 	if event.is_action_pressed("drop"):
 		drop_selected()
+	if event.is_action_pressed("throw"):
+		throw_selected()
+	if event.is_action_pressed("primary"):
+		combat.primary(true)
+	if event.is_action_released("primary"):
+		combat.primary(false)
+	if event.is_action_pressed("secondary"):
+		combat.secondary(true)
+	if event.is_action_released("secondary"):
+		combat.secondary(false)
+	if event.is_action_pressed("reload"):
+		combat.reload()
+	if event.is_action_pressed("reset_dummy"):
+		get_tree().current_scene.get_node("Dummy").reset()
 	if event.is_action_pressed("next_slot"):
 		inventory.select(inventory.selected_index + 1)
 	if event.is_action_pressed("previous_slot"):
@@ -74,17 +94,43 @@ func _physics_process(delta: float) -> void:
 	velocity = motion / time_scale
 	move_and_slide()
 	motion = velocity * time_scale
+	push_contacts(direction * move_speed, delta)
 	update_target()
-	# Avoid a held model visibly passing through nearby arena walls or the dummy.
-	var wall_query := PhysicsRayQueryParameters3D.create(camera.global_position, camera.global_position - camera.global_basis.z * 1.0, 1 | 8)
-	equipped.visible = get_world_3d().direct_space_state.intersect_ray(wall_query).is_empty()
 	focus.set_active(captured and Input.is_action_pressed("focus"))
+
+func push_contacts(desired_velocity: Vector3, delta: float) -> void:
+	var pushed: Dictionary = {}
+	for index in get_slide_collision_count():
+		var collision := get_slide_collision(index)
+		var body := collision.get_collider() as RigidBody3D
+		if body == null or body.freeze or pushed.has(body.get_instance_id()):
+			continue
+		pushed[body.get_instance_id()] = true
+		var normal := collision.get_normal()
+		var direction := Vector3(-normal.x, 0, -normal.z).normalized()
+		if absf(normal.y) > 0.5:
+			# The rounded character foot steps onto thin props. Push the leading
+			# edge horizontally, but never a prop already directly under our feet.
+			var offset := body.global_position - global_position
+			offset.y = 0.0
+			if offset.length() < 0.2 or offset.dot(desired_velocity) <= 0.0:
+				continue
+			direction = offset.normalized()
+		# Never use the player's Focus-compensated velocity here (it can be 10x larger).
+		var closing_speed := desired_velocity.dot(direction) - body.linear_velocity.dot(direction)
+		if closing_speed <= 0.05:
+			continue
+		var impulse := minf(minf(closing_speed * push_response, push_force) * delta, body.mass * closing_speed)
+		body.sleeping = false
+		body.apply_central_impulse(direction * impulse)
 
 func set_mouse_captured(value: bool) -> void:
 	mouse_captured = value
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if value else Input.MOUSE_MODE_VISIBLE
 	if not value:
 		focus.set_active(false)
+		combat.cancel_action()
+		equipped.cancel_animation()
 	capture_changed.emit(value)
 
 func _notification(what: int) -> void:
@@ -92,11 +138,41 @@ func _notification(what: int) -> void:
 		set_mouse_captured(false)
 
 func update_target() -> void:
-	var query := PhysicsRayQueryParameters3D.create(camera.global_position, camera.global_position - camera.global_basis.z * pickup_distance, 1 | 4 | 8)
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var origin := camera.global_position
+	var forward := -camera.global_basis.z
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(origin, origin + forward * pickup_distance, 1 | 4 | 8)
+	var hit := space.intersect_ray(query)
 	var next: WorldItem = null
 	if not hit.is_empty() and hit.collider is WorldItem and hit.collider.can_pick_up():
 		next = hit.collider
+	else:
+		# A capsule is the swept volume of a camera-centered sphere. Query only this
+		# narrow volume, then test at most four candidates for crosshair angle and LOS.
+		var capsule := CapsuleShape3D.new()
+		capsule.radius = pickup_radius
+		capsule.height = pickup_distance + pickup_radius * 2.0
+		var broad := PhysicsShapeQueryParameters3D.new()
+		broad.shape = capsule
+		broad.transform = Transform3D(Basis(Quaternion(Vector3.UP, forward)), origin + forward * pickup_distance * 0.5)
+		broad.collision_mask = 4
+		var candidates: Array[Dictionary] = []
+		for result in space.intersect_shape(broad, 12):
+			var body := result.collider as WorldItem
+			if body == null or not body.can_pick_up():
+				continue
+			var offset := body.global_position - origin
+			var along := offset.dot(forward)
+			if along < 0.1 or offset.length() > pickup_distance:
+				continue
+			candidates.append({"body": body, "score": (offset - forward * along).length_squared() / (along * along)})
+		candidates.sort_custom(func(a: Dictionary, b: Dictionary): return a.score < b.score)
+		for index in mini(candidates.size(), 4):
+			var body: WorldItem = candidates[index].body
+			var sight := space.intersect_ray(PhysicsRayQueryParameters3D.create(origin, body.global_position, 1 | 4 | 8))
+			if not sight.is_empty() and sight.collider == body:
+				next = body
+				break
 	if is_instance_valid(target) and target != next:
 		target.set_highlighted(false)
 	target = next
@@ -121,6 +197,12 @@ func pick_up_target() -> bool:
 	return true
 
 func drop_selected() -> bool:
+	return release_selected(false)
+
+func throw_selected(power: float = 1.0, underhand: bool = false) -> bool:
+	return release_selected(true, power, underhand)
+
+func release_selected(thrown: bool, power: float = 1.0, underhand: bool = false) -> bool:
 	var instance := inventory.current_item()
 	if instance == null:
 		notice.emit("Empty slot · look at an object and press E")
@@ -141,9 +223,10 @@ func drop_selected() -> bool:
 	var blocked := not space.intersect_shape(query, 1).is_empty() or (not fractions.is_empty() and fractions[0] < 1.0)
 	query.transform.origin = destination
 	query.motion = Vector3.ZERO
+	query.collision_mask = 1 | 2 | 4 | 8 # Destination must also clear the player's capsule.
 	blocked = blocked or not space.intersect_shape(query, 1).is_empty()
 	if blocked:
-		notice.emit("Make a little room to drop · look ahead into clear space")
+		notice.emit("Make a little room · look ahead into clear space")
 		return false
 	var body := WorldItem.new()
 	body.initialize(instance)
@@ -151,10 +234,19 @@ func drop_selected() -> bool:
 	body.global_position = destination
 	body.rotation.y = rotation.y
 	body.interaction_delay = 0.25
-	body.linear_velocity = forward * 1.2
+	if thrown:
+		var direction := (forward + Vector3.UP * 0.35).normalized() if underhand else forward
+		body.launch(direction, clampf(power, 0.1, 1.0), self)
+		body.damage_reported.connect(confirm_hit)
+	else:
+		body.linear_velocity = forward * 1.2
 	inventory.remove_selected()
-	notice.emit("Dropped " + instance.definition.display_name)
+	notice.emit(("Threw " if thrown else "Dropped ") + instance.definition.display_name)
 	return true
+
+func confirm_hit(damage: float) -> void:
+	if damage > 0.0:
+		hit_confirmed.emit(damage)
 
 func _on_selection_changed(_index: int, instance: ItemInstance) -> void:
 	if instance == null:

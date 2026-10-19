@@ -16,7 +16,7 @@ enum EnemyRole { GRUNT, SCAVENGER, BRUTE }
 @export var equipped_scale: float = 0.65
 @export var compatible_roles: Array[EnemyRole] = []
 
-@export_group("Future combat tuning (inactive in milestone 01)")
+@export_group("Combat")
 @export var primary_damage: float = 20.0
 @export var attacks_per_second: float = 3.0
 @export var magazine_size: int = 0
@@ -26,6 +26,19 @@ enum EnemyRole { GRUNT, SCAVENGER, BRUTE }
 @export var parry_window: float = 0.25
 @export var block_half_angle_degrees: float = 55.0
 @export var charge_seconds: float = 1.0
+@export var reload_seconds: float = 1.1
+@export var secondary_damage: float = 12.0
+@export var secondary_recovery: float = 0.5
+@export var hitscan_range: float = 60.0
+@export var projectile_min_speed: float = 2.0
+@export var projectile_full_damage_speed: float = 24.0
+@export var stagger_seconds: float = 0.35
+
+@export_group("Physical throwing")
+@export var throw_impulse: float = 14.0
+@export var throw_max_speed: float = 20.0
+@export var throw_spin: float = 3.0
+@export var throw_grace_seconds: float = 0.18
 
 func can_be_used_by(role: EnemyRole) -> bool:
 	return role in compatible_roles

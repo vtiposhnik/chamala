@@ -1,133 +1,182 @@
-# Object Rain — milestone 01
+# Object Rain — iteration 02
 
-A Godot 4 first-person physics playground: ten objects fall into an enclosed arena;
-collect five, switch between them, drop them back into the world, and hold Focus
-to slow the rain. Built with primitive meshes and the Compatibility renderer.
+A Godot 4 first-person physics playground with ten falling props, five inventory
+slots, Focus slow motion, and the first three functional weapons. The original
+arena, movement, camera, inventory and item-identity systems are retained.
 
 ## Run
 
-1. Install **Godot 4.6.x Standard** (tested with **4.6.3**; .NET is unnecessary).
-2. Import `project.godot` in the Project Manager.
-3. Press **F6** with `scenes/arena.tscn` open, or **F5** to run the project.
-4. Click the game if the mouse is released. Hold Shift immediately, or hold it
-   while pressing R, to catch the opening fall in slow motion.
+Use **Godot 4.6.x Standard** (tested with **4.6.3**; no .NET, plugins, downloaded
+assets, services or credentials). Import `project.godot`, then press **F5** to run.
+From this directory: `godot --path .`.
 
-No plugins, downloaded assets, credentials, services, or package installation are required.
-From a terminal: `godot --path .` (run from this repository).
+Click the game if the mouse is released. Hold Shift while pressing F5 **inside
+the running game** to reset the rain in Focus and catch falling objects.
 
 | Control | Action |
 | --- | --- |
 | WASD / mouse | Move / look |
 | Space | Jump |
-| E | Collect the highlighted object within 3.4 m |
-| 1–5 / mouse wheel | Select a slot, including empty slots |
-| G | Drop the selected object into clear space ahead |
-| Hold Shift | Focus: world at 10% speed, responsive movement and camera |
-| R | Reset the arena, inventory, and ten-object rain |
+| E | Instantly collect the highlighted object |
+| 1–5 / mouse wheel | Select an inventory slot, including empty slots |
+| G | Gentle drop (preserved from iteration 01) |
+| F | Physical throw of any equipped object |
+| LMB | Pistol fire / pan swing / hold and release to throw baseball |
+| RMB | Pistol-whip / pan parry / baseball underhand toss |
+| R | Reload pistol; **no longer resets the arena** |
+| T | Reset dummy to 100 HP, preserving inventory and world objects |
+| F5 | Reset arena, inventory, dummy and the ten-object rain |
+| Hold Shift | Focus: world at 10% speed, normal-feeling movement and camera |
 | Escape | Release / capture mouse; click also recaptures |
 
-Pickups select the filled slot. A full inventory leaves the object in the world.
-Blocked drops retain the held item; look into open space before dropping a chair.
-Releasing the mouse or losing application focus also releases Focus. This releases
-input, **not** the world simulation; objects continue falling. R is always available
-while input is captured.
+Holding LMB repeats pistol shots or pan swings at their configured rates. Switching
+weapons or releasing the mouse cancels held attacks, a partial charge, parry and
+unfinished reload. Releasing the mouse does not pause the simulation.
 
-## Implemented systems and files
+## Physics changes
+
+- **Pushing:** CharacterBody3D did not provide a sustained impulse to settled
+  RigidBody3D props. Contact-based horizontal impulses now wake only contacted
+  bodies. Applied force is bounded, delta-v is capped, and mass/friction determine
+  resistance. Thin pans use the leading contact at the character's rounded foot;
+  props directly underneath the player are not kicked sideways. Sleeping stays on.
+- **Throwing:** F and baseball attacks share a release path, separate from attack
+  behavior. Swept-volume and destination overlap checks retain the item when space
+  is blocked. Impulses are applied in the first physics integration step, after
+  server-side mass is synchronized. Spin is bounded and mass-scaled. The thrower
+  is temporarily excluded from collision until the grace period ends and the prop
+  clears their body. The same item instance becomes recoverable in the world.
+- **Held models:** The old wall ray intentionally hid the weapon mount. It is
+  removed. Held meshes now render in an isolated transparent SubViewport with their
+  own depth buffer, below the HUD. They have no physics body and cast no shadows.
+  Walls cannot clip or hide them, and the inventory stays authoritative.
+- **Pickup:** An exact ray takes priority. On a miss, a narrow camera-aligned capsule
+  represents a swept sphere; it checks up to twelve candidates, ranks crosshair
+  proximity, and validates line of sight for at most four. This catches small balls
+  without selecting unrelated objects or reaching through walls. No world-wide
+  per-frame object search is used.
+
+## Combat and feedback
+
+| Weapon | Primary | Secondary |
+| --- | --- | --- |
+| Pistol | 20-damage hitscan, 3 shots/sec, 12-round magazine | 12-damage close-range whip |
+| Frying pan | 25-damage melee sweep, 1.6 swings/sec, strong impulse | Frontal parry, 0.25-second active window |
+| Baseball | Charged physical throw, up to 30 direct-hit damage | Gentle upward underhand toss |
+
+Pistol reload takes 1.1 world seconds with unlimited reserve ammunition for testing.
+Hitscan stops at walls and applies bounded impulses to props. Recoil, a simple
+muzzle flash, swing/reload poses and HUD hit markers provide placeholder feedback.
+
+Melee queries execute once per swing and use distance, angle and occlusion checks.
+A target can be hit only once per swing. Parry raises/highlights the pan and shows
+`PARRY ACTIVE`; success consumes the window and flashes a confirmation. The shared
+`CombatController.try_parry(origin, projectile, attacker)` API rejects late/rear
+attacks, calls `interrupt_attack()` on a compatible melee attacker, or reflects a
+projectile that supports `can_reflect()` and `reflect()`. Physical baseball contact
+with a parrying player also invokes this path. There are no enemy attackers yet.
+
+Baseballs use rigid-body gravity, CCD, bounce and friction. Damage combines charge
+with normal impact speed, capped at 30. A three-sample pre-contact velocity history
+accounts for Godot CCD reducing speed before reporting a contact. The history clears
+on contact, and each target is damaged only once per launch, preventing resting-contact
+repeats. Landing/sleep disarms the ball; pickup and a new throw start a new launch.
+Eligible targets receive a stagger callback. The stationary dummy shows a short
+visual stagger and damage flash while its collider remains fixed.
+
+The HUD shows ammo/reload state, baseball charge, active parry, hit damage, and the
+target object's mass and speed in m/s. Held items show their mass. The dummy displays
+100 HP, incoming damage and an offline/reset message at zero HP.
+
+## Focus timing
+
+The existing Focus movement and camera behavior is unchanged. Player movement uses
+unscaled time; world physics uses `Engine.time_scale`. Combat cooldowns, reload,
+charge, parry, projectile motion and procedural weapon animation all use **world
+seconds**. At 10% speed a 0.25-second parry lasts 2.5 real seconds, and a one-second
+charge takes ten real seconds. HUD notifications use real time. Push impulses use
+world delta and unscaled intended movement speed, avoiding a tenfold force spike.
+
+Per-item cooldowns survive switching and world/inventory transfers. Unequipping
+cancels reload and charge rather than completing them invisibly. Releasing the mouse,
+losing application focus, or removing the scene restores normal time.
+
+## Files and tuning
 
 ```text
-scenes/arena.tscn             Main scene, enclosed arena, lights, player and dummy
-scenes/player.tscn            CharacterBody3D, camera, weapon mount, inventory, Focus
-scenes/dummy.tscn             Stationary damageable target and visible health label
-resources/weapons/*.tres      Five editable weapon definitions and future balance values
-scripts/player/player.gd      Movement, look, target ray, pickup, safe drop, slot input
-scripts/items/                Definitions, item state, inventory, physical/equipped models
-scripts/components/           Health and Focus components
-scripts/world/                Arena markings, rain spawner and dummy
-scripts/ui/hud.gd             Crosshair, target hint, five slots, status and instructions
-tests/milestone_test.gd       Executable gameplay/physics regression checks
-export_presets.cfg           Windows Desktop export preset
+scenes/arena.tscn                 Existing enclosed arena, lights, player, dummy, HUD
+scenes/player.tscn                Existing player plus a Combat controller node
+scenes/dummy.tscn                 Stationary target using Health
+resources/weapons/*.tres          Shared definitions, physics and combat tuning
+scripts/player/player.gd          Existing movement + contact push, pickup and release
+scripts/items/world_item.gd       Physical props, safe launch, impacts and reflection
+scripts/items/equipped_weapon.gd  Isolated held rendering and procedural feedback
+scripts/items/item_instance.gd    Persistent per-item ammo and cooldown
+scripts/items/weapon_behavior.gd  Equip/unequip/primary/secondary/reload/parry hooks
+scripts/combat/                  Controller, shared hit queries, three weapon behaviors
+scripts/components/              Health and unchanged Focus controller
+scripts/world/dummy.gd           Damage flash, stagger, health label and reset
+scripts/ui/hud.gd                 Inventory, aiming, combat status and debug readout
+project.godot                    Input actions and Compatibility renderer
+export_presets.cfg               Windows Desktop export preset
 ```
 
-The main scene hierarchy is `ObjectRain → Environment, KeyLight, FillLight,
-Arena, Objects, Player, Dummy, HUD`. Arena contains the floor, ceiling and four
-walls. `Objects` owns the ten spawned bodies and any subsequently dropped bodies.
+Physics and combat parameters are exported on `WeaponDefinition`: mass, friction,
+bounce, throw impulse/speed/spin/grace, damage, rate, ammo, reload, melee range/arc,
+parry window, charge duration, impact-speed threshold and stagger time. Player
+push force/response and pickup radius/range are exposed on `Player`. Focus's slow
+multiplier is still on `Player/Focus`.
 
-`WeaponDefinition` is shared Resource data. `ItemInstance` stores per-object
-state such as remaining rounds. `WorldItem` uses a `RigidBody3D`, a conservative
-collision shape, CCD and its definition's mass, friction and bounce.
-`EquippedWeapon` uses a visual-only model attached to the camera. A pickup claims
-the world body once, removes it and transfers the same instance into inventory;
-dropping transfers that instance back to exactly one new physical body. There is
-no physical copy hidden elsewhere. Slots and selected-object changes emit signals.
-
-The pistol, frying pan, chair, folded umbrella and baseball have distinct primitive
-silhouettes and colors. Looking at a reachable object gives it a mint highlight.
-Walls, objects and the dummy occlude the targeting ray. Drops use a swept enclosing
-sphere, plus overlap checks at the start and destination, to avoid spawning inside
-geometry. The conservative check can reject a tight space that might fit the mesh.
-
-Focus changes `Engine.time_scale`. Rigid-body physics follows scaled time. Player
-acceleration, gravity, movement and UI messages use real time; mouse motion uses
-raw relative input. Scene teardown always restores the time scale. There are no
-combat cooldowns or animations yet; future world combat should use scaled `delta`.
-
-Collision layers: **1 Arena**, **2 Player**, **3 Objects**, **4 Targets**.
-Player mask: Arena/Objects/Targets. Object mask: all four. Interaction mask:
-Arena/Objects/Targets. Visual markings and held objects have no collisions.
-
-Tune movement, sensitivity and pickup/drop distance on `Player`; slow multiplier
-on `Player/Focus`; rain height, seed and count (up to ten) on `Objects`; health on
-`Dummy/Health`; mass, bounce, color, shape size and future damage values in the
-five `.tres` files. The default rain includes two of each kind with seeded rotations
-and height variation, so repeated tests are comparable.
-
-## Scope and limitations
-
-This is **only milestone 01**. LMB/RMB combat, charged throws, pistol ammunition
-consumption, parries, umbrella blocking, impact damage/stagger, enemy AI/waves,
-thirty-object selection phases and progression are not implemented. G is a gentle
-drop, not a damaging throw. There are no audio assets or complex effects.
-
-`WeaponBehavior` defines equip, unequip, primary, secondary and throw hooks for
-later behavior scripts; primary/secondary are intentionally inactive. Definitions
-include the requested initial balancing values and role compatibility: Grunts use
-nothing, Scavengers accept lightweight items, and Brutes accept chairs. These rules
-are tested without spawning enemies or adding AI.
-
-The dummy exposes `apply_damage(amount, direction, impulse)` and a reusable Health
-component with damage, change and death signals. Its health display updates and
-clamps at zero. It stays stationary, including after death; no player attack is
-bound in this milestone. The test suite exercises its damage API directly.
+One `ItemInstance` transfers between a single world RigidBody3D and an inventory
+slot. Equipping creates only a visual model; collecting removes the world body.
+Collision layers remain **1 Arena, 2 Player, 3 Objects, 4 Targets**. Damage, inventory,
+targeting and feedback communicate through signals or the shared combat interface.
 
 ## Validate
 
-From the repository directory:
+Run from the repository directory:
 
 ```sh
 godot --headless --path . --editor --import --quit
 godot --headless --path . --fixed-fps 60 --script res://tests/milestone_test.gd
+godot --headless --path . --fixed-fps 60 --script res://tests/combat_test.gd
 ```
 
-The suite loads the actual arena and checks fall/floor collision, pickup rays and
-highlights, duplicate prevention, capacity, slot input, state-preserving drops,
-wall obstruction, recoverability, Focus physics and movement, camera response,
-dummy damage, role compatibility, teardown and HUD placement. It prints a summary
-and exits nonzero on a failed check. `--fixed-fps 60` makes the checks fast and
-repeatable without changing the project's normal runtime settings.
+The original regression suite covers spawning, falling, pickup, inventory,
+state-preserving drops, occlusion, Focus movement/camera, health and scene reset.
+The combat suite covers actual sleeping-body pushes, forgiving pickup, held-model
+isolation, shooting/rate/ammo/reload, switching, Focus timing, melee, parry and real
+projectile reflection, mass-dependent throws, speed-dependent impact damage,
+bounce, stagger, repeat-hit prevention and recovery. Each suite has a timeout and
+exits nonzero on failure. Fixed-FPS is a test-runner option, not a gameplay change.
 
-Manual playtest:
+Manual checks:
 
-1. Hold Shift and reset. Verify ten objects fall slowly while WASD and mouse remain responsive.
-2. Approach and aim at an object. Confirm its highlight and E prompt; collect it.
-3. Collect five, switch with all number keys and both wheel directions, then try a sixth.
-4. Drop beside open floor, then recover it. Try dropping directly into a wall;
-   the object should remain in its slot. Select an empty slot and press G.
-5. Release Shift, jump, walk against the walls, release the mouse and recapture it.
-6. Reset while Focus is active; the arena should return to ten objects and empty slots.
+1. Let props settle; walk into balls, pistols, pans and chairs. Compare resistance.
+2. Pick up a small ball while moving. Fill the inventory and try another pickup.
+3. Equip each object against a wall; it should stay visible. Test blocked F/G,
+   then throw into open space and recover the object.
+4. Shoot the dummy five times, reload with R, and reset only the dummy with T.
+5. Move close and test pistol-whip and pan swings. Test the visible parry window.
+6. Charge/release a baseball at the dummy; compare with a short charge and toss.
+7. Repeat with Focus, switch weapons during reload/charge, release/recapture the
+   mouse, and use F5 to reset the entire test.
 
-Linux cloud validation uses Godot 4.6.3; the Compatibility renderer was also run
-with software OpenGL. Windows execution and export have not been tested here.
-For a Windows build, install matching Godot export templates, select
-**Project → Export → Windows Desktop**, and export to `builds/windows/ObjectRain.exe`.
-The preset embeds the project data in the executable. Export templates are only
-needed for packaging, not for playing in the editor.
+## Scope and limitations
+
+Only pistol, frying pan and baseball have attacks. Chair and umbrella retain
+pickup/equip/drop and generic physical throwing; their attacks and thrown impact
+damage are deferred. Player health, enemies, waves, new levels, progression and
+player shadows are not added. No elaborate animation or audio system is included.
+
+The dummy's knockback/stagger is visual because it is intentionally stationary;
+loose props receive actual impulses. The parry API and physical reflection are
+verified in tests; regular play has no enemy attacks to parry. Generic throws are
+instant, with physical spin; no delayed hand/windup animation was added. Conservative
+release clearance may reject some tight spaces. Held models draw over walls by
+design, but attacks and item release still obey world collisions.
+
+Validated with Godot 4.6.3 on Linux, including a software-OpenGL Compatibility render.
+Windows execution/export remains untested. For packaging, install matching export
+templates and use **Project → Export → Windows Desktop**. The preset embeds project
+data in `builds/windows/ObjectRain.exe`; templates are not needed to run in the editor.

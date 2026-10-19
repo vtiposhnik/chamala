@@ -2,11 +2,22 @@ class_name WorldItem
 extends RigidBody3D
 
 signal claimed(item: ItemInstance)
+signal damage_reported(amount: float)
 
 var item: ItemInstance
 var is_claimed: bool = false
 var visual: ItemVisual
 var interaction_delay: float = 0.0
+var projectile_active: bool = false
+var damage_limit: float = 0.0
+var previous_velocity: Vector3 = Vector3.ZERO
+var hit_targets: Dictionary = {}
+var launch_owner: PhysicsBody3D
+var owner_grace: float = 0.0
+var reflection_pending: bool = false
+var pending_impulse: Vector3 = Vector3.ZERO
+var pending_torque: Vector3 = Vector3.ZERO
+var flight_samples: Array[Vector3] = []
 
 func initialize(instance: ItemInstance) -> void:
 	item = instance
@@ -17,6 +28,8 @@ func initialize(instance: ItemInstance) -> void:
 	continuous_cd = true
 	linear_damp = 0.15
 	angular_damp = 0.6
+	contact_monitor = true
+	max_contacts_reported = 4
 	var material := PhysicsMaterial.new()
 	material.bounce = item.definition.bounce
 	material.friction = item.definition.friction
@@ -38,6 +51,110 @@ func initialize(instance: ItemInstance) -> void:
 
 func _physics_process(delta: float) -> void:
 	interaction_delay = maxf(0.0, interaction_delay - delta / Engine.time_scale)
+	item.attack_cooldown = maxf(0.0, item.attack_cooldown - delta)
+	if is_instance_valid(launch_owner):
+		owner_grace = maxf(0.0, owner_grace - delta)
+		var clearance := item.definition.collision_size.length() * 0.5 + 1.05
+		if owner_grace == 0.0 and global_position.distance_to(launch_owner.global_position + Vector3.UP * 0.9) > clearance:
+			clear_owner_exception()
+	if sleeping:
+		projectile_active = false
+
+func launch(direction: Vector3, power: float, user: PhysicsBody3D) -> void:
+	var data := item.definition
+	sleeping = false
+	var impulse := minf(data.throw_impulse * power, mass * data.throw_max_speed)
+	# A newly added body's server-side mass is synchronized on its first physics
+	# step. Queue the impulse for that step so every mass receives the right delta-v.
+	pending_impulse = direction * impulse
+	# Torque is mass-scaled to avoid extreme spin on the lightest props.
+	pending_torque = Vector3.RIGHT * mass * data.throw_spin * 0.05
+	previous_velocity = direction * impulse / mass
+	flight_samples.assign([previous_velocity])
+	projectile_active = data.kind == WeaponDefinition.Kind.BASEBALL
+	damage_limit = data.primary_damage * power
+	hit_targets.clear()
+	exclude_owner(user)
+
+func exclude_owner(user: PhysicsBody3D) -> void:
+	clear_owner_exception()
+	launch_owner = user
+	if is_instance_valid(user):
+		add_collision_exception_with(user)
+		user.add_collision_exception_with(self)
+	owner_grace = item.definition.throw_grace_seconds
+
+func clear_owner_exception() -> void:
+	if is_instance_valid(launch_owner):
+		remove_collision_exception_with(launch_owner)
+		launch_owner.remove_collision_exception_with(self)
+	launch_owner = null
+
+func _exit_tree() -> void:
+	clear_owner_exception()
+
+func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if not pending_impulse.is_zero_approx():
+		state.apply_central_impulse(pending_impulse)
+		state.apply_torque_impulse(pending_torque)
+		pending_impulse = Vector3.ZERO
+		pending_torque = Vector3.ZERO
+	if projectile_active:
+		for index in state.get_contact_count():
+			var collider := state.get_contact_collider_object(index) as Node3D
+			if collider == null:
+				continue
+			# Godot's "local" identifies this side of the contact; the reported
+			# normal is already in world coordinates. Do not rotate it with ball spin.
+			var normal := state.get_contact_local_normal(index)
+			var speed := absf(previous_velocity.dot(normal))
+			var incoming := previous_velocity
+			# Godot CCD can clamp velocity for one or two steps *before* reporting
+			# a contact. A short pre-contact history preserves actual approach speed.
+			for sample in flight_samples:
+				if absf(sample.dot(normal)) > speed:
+					speed = absf(sample.dot(normal))
+					incoming = sample
+			if collider is RainPlayer and not reflection_pending:
+				reflection_pending = true
+				resolve_player_contact.call_deferred(collider, collider.camera.global_position - previous_velocity.normalized())
+			elif collider.has_method("apply_damage") and speed >= item.definition.projectile_min_speed and not hit_targets.has(collider.get_instance_id()):
+				hit_targets[collider.get_instance_id()] = true
+				var damage := damage_limit * clampf(speed / item.definition.projectile_full_damage_speed, 0.0, 1.0)
+				resolve_impact.call_deferred(collider, damage, incoming.normalized())
+	if state.get_contact_count() > 0:
+		flight_samples.clear()
+	flight_samples.append(state.linear_velocity)
+	if flight_samples.size() > 3:
+		flight_samples.pop_front()
+	previous_velocity = state.linear_velocity
+
+func resolve_impact(collider: Node3D, damage: float, direction: Vector3) -> void:
+	if not is_instance_valid(collider) or is_claimed:
+		return
+	var applied := CombatHit.apply(collider, damage, direction, item.definition.impact_impulse)
+	if applied > 0.0:
+		if collider.has_method("stagger"):
+			collider.stagger(item.definition.stagger_seconds)
+		damage_reported.emit(applied)
+
+func resolve_player_contact(player: RainPlayer, origin: Vector3) -> void:
+	reflection_pending = false
+	if is_instance_valid(player):
+		player.combat.try_parry(origin, self)
+
+func can_reflect() -> bool:
+	return projectile_active and not is_claimed
+
+func reflect(direction: Vector3, user: PhysicsBody3D) -> void:
+	sleeping = false
+	pending_impulse = Vector3.ZERO
+	pending_torque = Vector3.ZERO
+	linear_velocity = direction.normalized() * maxf(previous_velocity.length(), 6.0)
+	previous_velocity = linear_velocity
+	flight_samples.assign([previous_velocity])
+	hit_targets.clear()
+	exclude_owner(user)
 
 func can_pick_up() -> bool:
 	return not is_claimed and interaction_delay <= 0.0

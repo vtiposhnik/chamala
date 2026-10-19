@@ -9,9 +9,14 @@ var toast: Label
 var capture_hint: Label
 var toast_time: float = 0.0
 var crosshair: Label
+var weapon_status: Label
+var debug_info: Label
+var hit_marker: Label
+var hit_time: float = 0.0
 const MINT := Color("80f3cd")
 
 func _ready() -> void:
+	layer = 2 # Above the dedicated held-weapon pass.
 	player = get_parent().get_node("Player")
 	var root := Control.new()
 	root.name = "Layout"
@@ -21,7 +26,7 @@ func _ready() -> void:
 	var title := label("OBJECT / RAIN", 26, Color("e4eaf0"))
 	title.position = Vector2(32, 25)
 	root.add_child(title)
-	var subtitle := label("PHYSICS PLAYGROUND     /     MILESTONE 01", 12, Color("9aabba"))
+	var subtitle := label("PHYSICS + COMBAT     /     ITERATION 02", 12, Color("9aabba"))
 	subtitle.position = Vector2(34, 61)
 	root.add_child(subtitle)
 	status = label("●  REAL TIME", 18, MINT)
@@ -47,6 +52,12 @@ func _ready() -> void:
 	capture_hint = centered(root, -90, 22)
 	capture_hint.text = "MOUSE RELEASED · click to resume"
 	capture_hint.visible = not player.mouse_captured
+	weapon_status = centered(root, 146, 16)
+	debug_info = label("", 14, Color("9aabba"))
+	debug_info.position = Vector2(34, 91)
+	root.add_child(debug_info)
+	hit_marker = centered(root, -52, 22)
+	hit_marker.modulate = Color("ffe0a0")
 	var inventory_row := HBoxContainer.new()
 	inventory_row.name = "InventorySlots"
 	root.add_child(inventory_row)
@@ -67,7 +78,7 @@ func _ready() -> void:
 		panel.add_child(text)
 		slot_labels.append(text)
 		slot_panels.append(panel)
-	var help := label("WASD  Move     SPACE  Jump     E  Pick up     G  Drop     1–5 / WHEEL  Equip     HOLD SHIFT  Focus     R  Reset     ESC  Mouse", 14, Color("a6b6c4"))
+	var help := label("WASD / SPACE Move     E Pick up     G Drop     F Throw     1–5 / WHEEL Equip     SHIFT Focus     R Reload     T Dummy     F5 Reset     ESC Mouse", 13, Color("a6b6c4"))
 	root.add_child(help)
 	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	help.offset_left = -600
@@ -81,6 +92,14 @@ func _ready() -> void:
 	player.notice.connect(show_notice)
 	player.focus.changed.connect(show_focus)
 	player.capture_changed.connect(func(captured: bool): capture_hint.visible = not captured)
+	player.hit_confirmed.connect(func(damage: float):
+		hit_marker.text = "×  %.1f" % damage
+		hit_time = 0.25
+	)
+	player.parry_confirmed.connect(func():
+		hit_marker.text = "◇  PARRY"
+		hit_time = 0.35
+	)
 	refresh_inventory()
 	show_notice("Ten objects. Five slots. Hold Shift to catch the rain.")
 
@@ -136,3 +155,12 @@ func show_notice(message: String) -> void:
 func _process(delta: float) -> void:
 	toast_time = maxf(0.0, toast_time - delta / Engine.time_scale)
 	toast.visible = toast_time > 0.0
+	hit_time = maxf(0.0, hit_time - delta / Engine.time_scale)
+	hit_marker.visible = hit_time > 0.0
+	weapon_status.text = player.combat.status_text() if player.inventory.current_item() != null else ""
+	if is_instance_valid(player.target):
+		debug_info.text = "TARGET  %.3f kg   |   %.2f m/s" % [player.target.mass, player.target.linear_velocity.length()]
+	elif player.inventory.current_item() != null:
+		debug_info.text = "HELD  %.3f kg" % player.inventory.current_item().definition.mass
+	else:
+		debug_info.text = ""

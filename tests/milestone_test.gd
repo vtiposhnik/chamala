@@ -177,16 +177,16 @@ func run() -> void:
 	check(not chair.can_be_used_by(WeaponDefinition.EnemyRole.SCAVENGER), "Scavenger compatibility rejects heavy chair")
 	check(chair.can_be_used_by(WeaponDefinition.EnemyRole.BRUTE), "Brute compatibility allows chair")
 	check(not pistol.can_be_used_by(WeaponDefinition.EnemyRole.GRUNT), "Grunt cannot use weapons")
-	# Exercise R through the real input handler, including deferred scene replacement.
+	# Exercise arena reset through the real input handler, including deferred replacement.
 	player.set_mouse_captured(true)
 	player.focus.set_active(true)
 	key_action("restart")
 	await frames(4)
 	arena = current_scene
 	player = arena.get_node("Player")
-	check(get_nodes_in_group("world_items").size() == 10, "R recreates exactly ten physical objects")
-	check(player.inventory.slots.all(func(item): return item == null), "R resets all five inventory slots")
-	check(is_equal_approx(Engine.time_scale, 1.0), "R restores normal time when Shift is released")
+	check(get_nodes_in_group("world_items").size() == 10, "F5 recreates exactly ten physical objects")
+	check(player.inventory.slots.all(func(item): return item == null), "F5 resets all five inventory slots")
+	check(is_equal_approx(Engine.time_scale, 1.0), "F5 restores normal time when Shift is released")
 	player.focus.set_active(true)
 	arena.queue_free()
 	await process_frame

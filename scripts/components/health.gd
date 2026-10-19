@@ -11,14 +11,16 @@ var current: float
 func _ready() -> void:
 	current = maximum
 
-func apply_damage(amount: float, direction: Vector3 = Vector3.ZERO, impulse: float = 0.0) -> void:
+func apply_damage(amount: float, direction: Vector3 = Vector3.ZERO, impulse: float = 0.0) -> float:
 	if current <= 0.0 or amount <= 0.0:
-		return
+		return 0.0
+	var applied := minf(current, amount)
 	current = maxf(0.0, current - amount)
-	damaged.emit(amount, direction, impulse)
+	damaged.emit(applied, direction, impulse)
 	changed.emit(current, maximum)
 	if current == 0.0:
 		died.emit()
+	return applied
 
 func reset() -> void:
 	current = maximum
