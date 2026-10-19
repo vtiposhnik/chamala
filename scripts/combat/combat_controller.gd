@@ -4,6 +4,8 @@ extends Node
 const PISTOL = preload("res://scripts/combat/pistol_behavior.gd")
 const PAN = preload("res://scripts/combat/pan_behavior.gd")
 const BASEBALL = preload("res://scripts/combat/baseball_behavior.gd")
+const CHAIR = preload("res://scripts/combat/chair_behavior.gd")
+const UMBRELLA = preload("res://scripts/combat/umbrella_behavior.gd")
 
 var actor: RainPlayer
 var behavior: WeaponBehavior
@@ -16,7 +18,7 @@ var selected_item: ItemInstance
 
 func _ready() -> void:
 	actor = get_parent()
-	for entry in [[WeaponDefinition.Kind.PISTOL, PISTOL], [WeaponDefinition.Kind.FRYING_PAN, PAN], [WeaponDefinition.Kind.BASEBALL, BASEBALL]]:
+	for entry in [[WeaponDefinition.Kind.PISTOL, PISTOL], [WeaponDefinition.Kind.FRYING_PAN, PAN], [WeaponDefinition.Kind.BASEBALL, BASEBALL], [WeaponDefinition.Kind.CHAIR, CHAIR], [WeaponDefinition.Kind.UMBRELLA, UMBRELLA]]:
 		var instance: WeaponBehavior = entry[1].new()
 		instance.actor = actor
 		add_child(instance)
@@ -85,6 +87,11 @@ func cancel_action() -> void:
 
 func try_parry(origin: Vector3, projectile: RigidBody3D = null, attacker: Node = null) -> bool:
 	return behavior.try_parry(origin, projectile, attacker) if behavior != null else false
+
+func defend_projectile(origin: Vector3, projectile: RigidBody3D) -> bool:
+	if behavior == null:
+		return false
+	return behavior.try_block(origin, projectile) or behavior.try_parry(origin, projectile)
 
 func status_text() -> String:
 	return behavior.status_text() if behavior != null else "F Throw"

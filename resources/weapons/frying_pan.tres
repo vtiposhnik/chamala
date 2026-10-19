@@ -22,3 +22,6 @@ impact_impulse = 9
 ; Collision-generated rotation remains enabled.
 throw_spin = 0.0
 
+capabilities = 35
+thrown_damage = 25.0
+projectile_full_damage_speed = 7.0

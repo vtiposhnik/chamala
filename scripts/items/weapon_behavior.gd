@@ -33,6 +33,9 @@ func status_text() -> String:
 func try_parry(_origin: Vector3, _projectile: RigidBody3D = null, _attacker: Node = null) -> bool:
 	return false
 
+func try_block(_origin: Vector3, _projectile: RigidBody3D) -> bool:
+	return false
+
 func throw_action() -> void:
 	if item != null:
 		action_requested.emit(&"throw", item)

@@ -77,3 +77,56 @@ playtest briefs; suggested next steps are not authorization to implement them.
 - **Suggested next steps:** collect feedback on 75% movement/80% action speeds and
   close-range throwing on Windows; tune exposed values before choosing another phase.
   No new enemies, levels, weapons, progression or Focus meter were added.
+
+## Iteration 4 — Unique objects, projectile interactions and combat testing
+
+- **Objective/philosophy:** Object Rain focuses on unique, situational object
+  interactions rather than giving every object conventional weapon attacks. Keep
+  the five-item prototype and stable Focus/pistol/baseball systems; add no AI or levels.
+- **Implemented:** chair's low two-handed pose and powerful, recoverable throw;
+  umbrella hold/open frontal defense; pan swing deflection alongside existing
+  melee/parry, plus thrown pan damage; visible physical projectiles and an optional
+  stationary launcher; three damageable dummies with physical upright knockback.
+- **Controls/tuning:** LMB throws chair, holds umbrella, or swings/deflects pan. F
+  throws all items. L toggles launcher, J single-fires, K cycles front/side/rear
+  placement, T restores all dummies and player test counters. Chair 6 kg / 60 N·s /
+  10 m/s / up to 60 damage; umbrella 120° and 0.12 action-second startup; pan retains
+  0.25-second window. Launcher defaults to 12 m/s, 10 damage, 1.5-world-second interval.
+- **Architecture:** lightweight Resource capability flags extend existing behavior
+  nodes. Actions remain optional. ProjectileDefinition configures disposable shots;
+  PhysicalProjectile stores source/owner/impact state. Standard/Heavy categories
+  control blocking; reflection eligibility is separate. Existing WorldItem launch,
+  safe release, persistent identity and impact history are reused for thrown damage.
+- **Decisions:** defense is checked against incoming direction at player contact.
+  Umbrella blocks without reflection; heavy chair impacts bypass it. Pan reflection
+  follows aim and grants temporary owner separation. Rigid projectile CCD is backed
+  by a sphere sweep to catch fast/thin contacts before damage. A terminal guard
+  prevents duplicate hits. Dummies use collision-aware CharacterBody motion, not
+  ragdolls. Player damage is a resettable test counter, not a death system.
+- **Fixes:** launcher projectiles explicitly replace default Godot damping so their
+  configured speed stays constant; ordinary props retain their existing damping.
+  Shield protection ends immediately on release, even while the canopy closes.
+  Visual testing caught a launcher station inside a dummy: stations now search for
+  a clear muzzle, and blocked muzzles cannot fire. A shell test runner rejects script
+  errors even when Godot returns zero, preventing false-positive suite results.
+  Switching/throwing/mouse release clear shield state. Context hints omit unavailable
+  attacks. Existing ten-object rain stays unchanged; 30 random objects is the longer-
+  term game premise rather than a distribution change in this interaction iteration.
+- **Files:** new chair/umbrella behaviors, projectile definition/body, launcher,
+  `resources/test_projectile.tres`, `tests/iteration4_test.gd` and `tests/run_tests.sh`; updated weapon
+  Resources, behavior/controller, item visuals/world impacts, player/HUD, dummy and
+  arena scenes/scripts, controls, README and both development documents.
+- **Validation:** 328 checks pass: 85 foundation, 73 combat, 88 iteration 3,
+  76 iteration 4, and 3 each at 30/144 FPS. Together, the suites cover
+  actual chair damage/knockback/recovery, frontal/side/rear/angle-boundary blocks,
+  heavy-chair bypass, shield cancellation and Focus startup, real pan reflection
+  into a dummy, late/nondeflectable hits, thrown pan damage, 300 m/s shots against
+  a 2 cm wall, initial overlap, lifetime cleanup and 30 simultaneous projectiles.
+  Clock checks cover 30/144 render FPS. Linux Compatibility visual checks cover
+  chair pose, closed/open umbrella, launcher, Focus and HUD. Windows/feel need manual play.
+- **Known limits:** angular shield coverage, decorative launcher collider omitted,
+  bounded throw release search, upright sliding dummies, placeholder art/no audio.
+  Launcher positions can be obstructed by props, which correctly intercept shots.
+- **Suggested next steps:** playtest chair weight, umbrella view coverage and pan
+  timing; tune the exposed values before choosing another development phase.
+  No umbrella gliding, new types, enemies, progression or arenas were implemented.

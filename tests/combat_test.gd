@@ -4,7 +4,7 @@ var checks: int = 0
 var failures: int = 0
 var arena: Node3D
 var player: RainPlayer
-var dummy: StaticBody3D
+var dummy: CharacterBody3D
 
 class MeleeAttacker extends Node:
 	var interrupted: bool = false
@@ -317,7 +317,7 @@ func test_throwing() -> void:
 	click("throw")
 	var heavy: WorldItem = get_nodes_in_group("world_items")[0]
 	await frames(2)
-	check(heavy.item == chair and heavy.linear_velocity.z < -1.0 and heavy.linear_velocity.length() < 5.0, "generic throw uses a mass-dependent impulse for chair")
+	check(heavy.item == chair and heavy.linear_velocity.z < -8.0 and heavy.linear_velocity.length() < 11.0, "chair throw uses its stronger mass-dependent impulse")
 	check(player.inventory.current_item() == null, "generic throw is independent of primary/secondary behaviors")
 	var retained := await give("baseball")
 	player.global_position = Vector3(0, 0, 9)

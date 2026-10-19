@@ -26,7 +26,7 @@ func _ready() -> void:
 	var title := label("OBJECT / RAIN", 26, Color("e4eaf0"))
 	title.position = Vector2(32, 25)
 	root.add_child(title)
-	var subtitle := label("PHYSICS + COMBAT     /     ITERATION 03", 12, Color("9aabba"))
+	var subtitle := label("OBJECT INTERACTIONS     /     ITERATION 04", 12, Color("9aabba"))
 	subtitle.position = Vector2(34, 61)
 	root.add_child(subtitle)
 	status = label("●  REAL TIME", 18, MINT)
@@ -78,7 +78,7 @@ func _ready() -> void:
 		panel.add_child(text)
 		slot_labels.append(text)
 		slot_panels.append(panel)
-	var help := label("WASD / SPACE Move     E Pick up     F Throw     1–5 / WHEEL Equip     SHIFT Toggle Focus     R Reload     T Dummy     F5 Reset     ESC Mouse", 13, Color("a6b6c4"))
+	var help := label("WASD / SPACE Move   E Pickup   F Throw   1–5 / WHEEL Equip   SHIFT Focus   L Launcher   J Shot   K Position   T Restore   F5 Reset   ESC Mouse", 13, Color("a6b6c4"))
 	root.add_child(help)
 	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	help.offset_left = -600
@@ -164,3 +164,5 @@ func _process(delta: float) -> void:
 		debug_info.text = "HELD  %.3f kg" % player.inventory.current_item().definition.mass
 	else:
 		debug_info.text = ""
+	var launcher: ProjectileLauncher = get_parent().get_node("Launcher")
+	debug_info.text += "\nTEST DAMAGE %.1f · HITS %d · BLOCKS %d\nLAUNCHER %s · %s" % [player.damage_taken, player.hits_received, player.blocks, "ON" if launcher.enabled else "OFF", launcher.last_result]

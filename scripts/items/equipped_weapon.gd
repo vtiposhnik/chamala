@@ -9,6 +9,7 @@ var animation: StringName
 var remaining: float = 0.0
 var duration: float = 0.1
 var charge: float = 0.0
+var shield_open: float = 0.0
 
 func _ready() -> void:
 	actor = get_parent().get_parent().get_parent()
@@ -90,15 +91,28 @@ func animate_action(action: StringName, seconds: float) -> void:
 func set_charge(fraction: float) -> void:
 	charge = fraction
 
+func set_shield_open(fraction: float) -> void:
+	shield_open = fraction
+	if is_instance_valid(visual):
+		visual.set_umbrella_open(fraction)
+
 func cancel_animation() -> void:
 	remaining = 0.0
 	charge = 0.0
+	set_shield_open(0.0)
 	if is_instance_valid(flash):
 		flash.visible = false
 
 func _process(delta: float) -> void:
 	remaining = maxf(0.0, remaining - actor.focus.action_delta(delta))
 	mount.transform = transform
+	if item != null and item.definition.has_capability(WeaponDefinition.Capability.HEAVY):
+		# Centered low, large silhouette suggests a two-handed grip without hiding aim.
+		mount.position = Vector3(0.0, -0.53, -1.0)
+		mount.rotation = Vector3(-0.2, 0.0, 0.0)
+	if item != null and item.definition.has_capability(WeaponDefinition.Capability.DEFENSIVE):
+		mount.position = mount.position.lerp(Vector3(0.3, -0.38, -1.1), shield_open)
+		mount.rotation.x += shield_open * PI * 0.5
 	mount.position.z += charge * 0.16
 	flash.visible = item != null and animation == &"shoot" and remaining > duration * 0.6
 	if remaining > 0.0:
@@ -116,9 +130,11 @@ func _process(delta: float) -> void:
 			&"reload":
 				mount.position.y -= wave * 0.22
 				mount.rotation.z -= wave * 0.5
+			&"block":
+				mount.position.z += wave * 0.08
 			&"parry", &"parry_success":
 				mount.position.x -= 0.2
 				mount.position.y += 0.15
 				mount.rotation.x += PI * 0.45
 	if is_instance_valid(visual):
-		visual.set_highlighted(remaining > 0.0 and animation in [&"parry", &"parry_success"])
+		visual.set_highlighted(remaining > 0.0 and animation in [&"parry", &"parry_success", &"block"])

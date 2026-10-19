@@ -4,6 +4,7 @@ extends Node3D
 
 var materials: Array[StandardMaterial3D] = []
 var base_colors: Array[Color] = []
+var umbrella_canopy: MeshInstance3D
 
 func build(data: WeaponDefinition) -> void:
 	var dark := Color("263442")
@@ -29,7 +30,7 @@ func build(data: WeaponDefinition) -> void:
 			canopy.bottom_radius = 0.16
 			canopy.height = 0.8
 			canopy.radial_segments = 8
-			part(canopy, Vector3(0, 0.12, 0), data.color)
+			umbrella_canopy = part(canopy, Vector3(0, 0.12, 0), data.color)
 			box(Vector3(0.14, 0.06, 0.06), Vector3(0.055, -0.53, 0), data.color)
 		WeaponDefinition.Kind.BASEBALL:
 			var ball := SphereMesh.new()
@@ -45,6 +46,12 @@ func box(size: Vector3, at: Vector3, color: Color) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	part(mesh, at, color)
+
+func set_umbrella_open(fraction: float) -> void:
+	if not is_instance_valid(umbrella_canopy):
+		return
+	umbrella_canopy.scale = Vector3(lerpf(1.0, 5.5, fraction), lerpf(1.0, 0.3, fraction), lerpf(1.0, 5.5, fraction))
+	umbrella_canopy.position.y = lerpf(0.12, 0.5, fraction)
 
 func cylinder(radius: float, height: float, at: Vector3, color: Color) -> void:
 	var mesh := CylinderMesh.new()

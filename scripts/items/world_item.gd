@@ -65,8 +65,8 @@ func launch(direction: Vector3, power: float, user: PhysicsBody3D) -> void:
 	pending_torque = Vector3.RIGHT * mass * data.throw_spin * 0.05
 	previous_velocity = direction * impulse / mass
 	flight_samples.assign([previous_velocity])
-	projectile_active = data.kind == WeaponDefinition.Kind.BASEBALL
-	damage_limit = data.primary_damage * power
+	projectile_active = data.thrown_damage > 0.0
+	damage_limit = data.thrown_damage * power
 	hit_targets.clear()
 	exclude_owner(user)
 
@@ -109,9 +109,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				if absf(sample.dot(normal)) > speed:
 					speed = absf(sample.dot(normal))
 					incoming = sample
-			if collider is RainPlayer and not reflection_pending:
+			if collider is RainPlayer and not reflection_pending and not hit_targets.has(collider.get_instance_id()) and speed >= item.definition.projectile_min_speed:
 				reflection_pending = true
-				resolve_player_contact.call_deferred(collider, collider.camera.global_position - previous_velocity.normalized())
+				hit_targets[collider.get_instance_id()] = true
+				var damage := damage_limit * clampf(speed / item.definition.projectile_full_damage_speed, 0.0, 1.0)
+				resolve_player_contact.call_deferred(collider, collider.camera.global_position - incoming.normalized(), damage, incoming.normalized())
 			elif collider.has_method("apply_damage") and speed >= item.definition.projectile_min_speed and not hit_targets.has(collider.get_instance_id()):
 				hit_targets[collider.get_instance_id()] = true
 				var damage := damage_limit * clampf(speed / item.definition.projectile_full_damage_speed, 0.0, 1.0)
@@ -132,13 +134,25 @@ func resolve_impact(collider: Node3D, damage: float, direction: Vector3) -> void
 			collider.stagger(item.definition.stagger_seconds)
 		damage_reported.emit(applied)
 
-func resolve_player_contact(player: RainPlayer, origin: Vector3) -> void:
+func resolve_player_contact(player: RainPlayer, origin: Vector3, damage: float = 0.0, direction: Vector3 = Vector3.ZERO) -> void:
 	reflection_pending = false
 	if is_instance_valid(player):
-		player.combat.try_parry(origin, self)
+		if not player.combat.defend_projectile(origin, self):
+			player.apply_damage(damage, direction, item.definition.impact_impulse)
 
 func can_reflect() -> bool:
-	return projectile_active and not is_claimed
+	return projectile_active and not is_claimed and item.definition.deflectable
+
+func can_block(categories: int) -> bool:
+	return projectile_active and not is_claimed and (item.definition.projectile_category & categories) != 0
+
+func block() -> void:
+	# Recoverable objects fall away; disposable launcher projectiles are removed.
+	projectile_active = false
+	pending_impulse = Vector3.ZERO
+	pending_torque = Vector3.ZERO
+	linear_velocity = Vector3.ZERO
+	flight_samples.clear()
 
 func reflect(direction: Vector3, user: PhysicsBody3D) -> void:
 	sleeping = false
@@ -151,7 +165,7 @@ func reflect(direction: Vector3, user: PhysicsBody3D) -> void:
 	exclude_owner(user)
 
 func can_pick_up() -> bool:
-	return not is_claimed and interaction_delay <= 0.0
+	return item.definition.has_capability(WeaponDefinition.Capability.RECOVERABLE) and not is_claimed and interaction_delay <= 0.0
 
 func claim() -> ItemInstance:
 	if not can_pick_up():

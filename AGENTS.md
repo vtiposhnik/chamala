@@ -4,6 +4,10 @@ Work within the existing Godot project and preserve stable gameplay unless the
 requested iteration explicitly changes it. Use Godot 4.x GDScript and the
 Compatibility renderer; no plugins are required.
 
+Object Rain focuses on unique, situational object interactions rather than giving
+every object conventional weapon attacks. Keep capabilities/actions optional and
+contextual hints specific to the equipped object.
+
 For every development iteration, update both `docs/DEVELOPMENT_LOG.md` and
 `docs/CURRENT_STATE.md` before finishing. Record verified changes, technical
 decisions, bugs fixed, limitations and suggested next steps. Keep controls and

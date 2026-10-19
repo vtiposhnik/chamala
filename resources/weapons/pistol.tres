@@ -19,3 +19,4 @@ attacks_per_second = 4.5
 magazine_size = 12
 impact_impulse = 5
 
+capabilities = 15

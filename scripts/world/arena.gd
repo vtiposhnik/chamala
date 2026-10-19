@@ -13,10 +13,10 @@ func _ready() -> void:
 	for x in [-5.25, 5.25]:
 		markings.box(Vector3(0.08, 0.015, 6.5), Vector3(x, 0.016, -1.25), Color("80f3cd"))
 	var sign_label := Label3D.new()
-	sign_label.text = "OBJECT / RAIN\nDROP LAB    —    01"
-	sign_label.font_size = 80
+	sign_label.text = "OBJECT / RAIN\nINTERACTION LAB    —    04"
+	sign_label.font_size = 60
 	sign_label.pixel_size = 0.009
-	sign_label.position = Vector3(0, 4.1, -9.72)
+	sign_label.position = Vector3(0, 5.2, -9.72)
 	sign_label.modulate = Color("80f3cd")
 	$Arena.add_child(sign_label)
 	$Objects.spawn_rain()

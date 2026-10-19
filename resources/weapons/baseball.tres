@@ -21,3 +21,5 @@ impact_impulse = 5
 throw_impulse = 3.48
 throw_max_speed = 24.0
 
+capabilities = 131
+thrown_damage = 30.0

@@ -19,3 +19,5 @@ attacks_per_second = 2
 magazine_size = 0
 impact_impulse = 5
 
+capabilities = 19
+block_half_angle_degrees = 60.0

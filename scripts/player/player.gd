@@ -26,6 +26,10 @@ signal parry_confirmed
 @onready var focus: FocusController = $Focus
 @onready var combat: CombatController = $Combat
 
+var damage_taken: float = 0.0
+var hits_received: int = 0
+var blocks: int = 0
+
 var target: WorldItem
 var motion: Vector3 = Vector3.ZERO
 var pitch: float = 0.0
@@ -68,7 +72,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("reload"):
 		combat.reload()
 	if event.is_action_pressed("reset_dummy"):
-		get_tree().current_scene.get_node("Dummy").reset()
+		get_tree().call_group("test_dummies", "reset")
+		reset_damage()
 	if event.is_action_pressed("next_slot"):
 		inventory.select(inventory.selected_index + 1)
 	if event.is_action_pressed("previous_slot"):
@@ -202,7 +207,7 @@ func throw_selected(power: float = 1.0, underhand: bool = false) -> bool:
 	if instance == null:
 		notice.emit("Empty slot · look at an object and press E")
 		return false
-	if not combat.can_throw():
+	if not instance.definition.has_capability(WeaponDefinition.Capability.THROWABLE) or not combat.can_throw():
 		return false
 	var forward := -camera.global_basis.z
 	var placement := ReleasePlacement.find(self, instance.definition, release_distance, release_margin)
@@ -243,3 +248,17 @@ func _on_selection_changed(_index: int, instance: ItemInstance) -> void:
 	else:
 		equipped.equip(instance)
 		equipped.animate_action(&"switch", combat.switch_seconds)
+
+# A resettable test damage counter, not a death/lives system.
+func apply_damage(amount: float, _direction: Vector3 = Vector3.ZERO, _impulse: float = 0.0) -> float:
+	if amount <= 0.0:
+		return 0.0
+	damage_taken += amount
+	hits_received += 1
+	notice.emit("HIT · %.1f damage · T resets test counters" % amount)
+	return amount
+
+func reset_damage() -> void:
+	damage_taken = 0.0
+	hits_received = 0
+	blocks = 0

@@ -6,6 +6,7 @@ func primary(pressed: bool) -> void:
 	if not pressed or item == null or item.attack_cooldown > 0.0:
 		return
 	item.attack_cooldown = 1.0 / item.definition.attacks_per_second
+	parry_remaining = item.definition.parry_window
 	actor.confirm_hit(CombatHit.melee(actor, item.definition.primary_damage, item.definition.melee_range, item.definition.sweep_arc_degrees, item.definition.impact_impulse))
 	actor.equipped.animate_action(&"swing", 0.3)
 
@@ -45,4 +46,4 @@ func unequip() -> void:
 	super.unequip()
 
 func status_text() -> String:
-	return "PARRY ACTIVE" if parry_remaining > 0.0 else "LMB Swing   ·   RMB Timed parry"
+	return "DEFLECTION WINDOW" if parry_remaining > 0.0 else "LMB Swing / deflect · RMB Timed parry · F Throw"

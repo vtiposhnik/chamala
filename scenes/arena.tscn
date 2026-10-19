@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/arena.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="Resource" path="res://resources/weapons/chair.tres" id="8"]
 [ext_resource type="Resource" path="res://resources/weapons/umbrella.tres" id="9"]
 [ext_resource type="Resource" path="res://resources/weapons/baseball.tres" id="10"]
+[ext_resource type="Script" path="res://scripts/world/projectile_launcher.gd" id="11"]
 
 [sub_resource type="Environment" id="Environment"]
 background_mode = 1
@@ -145,6 +146,16 @@ position = Vector3(0, 0.1, 6)
 
 [node name="Dummy" parent="." instance=ExtResource("3")]
 position = Vector3(0, 0, -7)
+
+[node name="DummyLeft" parent="." instance=ExtResource("3")]
+position = Vector3(-2, 0, -7)
+
+[node name="DummyRight" parent="." instance=ExtResource("3")]
+position = Vector3(2, 0, -7)
+
+[node name="Launcher" type="Node3D" parent="."]
+position = Vector3(4, 1.65, -3)
+script = ExtResource("11")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("5")
