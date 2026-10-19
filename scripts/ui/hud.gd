@@ -26,7 +26,7 @@ func _ready() -> void:
 	var title := label("OBJECT / RAIN", 26, Color("e4eaf0"))
 	title.position = Vector2(32, 25)
 	root.add_child(title)
-	var subtitle := label("PHYSICS + COMBAT     /     ITERATION 02", 12, Color("9aabba"))
+	var subtitle := label("PHYSICS + COMBAT     /     ITERATION 03", 12, Color("9aabba"))
 	subtitle.position = Vector2(34, 61)
 	root.add_child(subtitle)
 	status = label("●  REAL TIME", 18, MINT)
@@ -78,7 +78,7 @@ func _ready() -> void:
 		panel.add_child(text)
 		slot_labels.append(text)
 		slot_panels.append(panel)
-	var help := label("WASD / SPACE Move     E Pick up     G Drop     F Throw     1–5 / WHEEL Equip     SHIFT Focus     R Reload     T Dummy     F5 Reset     ESC Mouse", 13, Color("a6b6c4"))
+	var help := label("WASD / SPACE Move     E Pick up     F Throw     1–5 / WHEEL Equip     SHIFT Toggle Focus     R Reload     T Dummy     F5 Reset     ESC Mouse", 13, Color("a6b6c4"))
 	root.add_child(help)
 	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	help.offset_left = -600
@@ -101,7 +101,7 @@ func _ready() -> void:
 		hit_time = 0.35
 	)
 	refresh_inventory()
-	show_notice("Ten objects. Five slots. Hold Shift to catch the rain.")
+	show_notice("Ten objects. Five slots. Press Shift to toggle Focus.")
 
 func label(text: String, font_size: int, color: Color) -> Label:
 	var node := Label.new()
@@ -145,7 +145,7 @@ func show_target(target: WorldItem) -> void:
 		crosshair.modulate = Color.WHITE
 
 func show_focus(active: bool) -> void:
-	status.text = "●  FOCUS / %02d%%" % int(player.focus.slow_multiplier * 100) if active else "●  REAL TIME"
+	status.text = "●  FOCUS ON" if active else "●  REAL TIME"
 	status.modulate = Color("ffe0a0") if active else Color.WHITE
 
 func show_notice(message: String) -> void:
@@ -153,9 +153,9 @@ func show_notice(message: String) -> void:
 	toast_time = 3.0
 
 func _process(delta: float) -> void:
-	toast_time = maxf(0.0, toast_time - delta / Engine.time_scale)
+	toast_time = maxf(0.0, toast_time - player.focus.real_delta(delta))
 	toast.visible = toast_time > 0.0
-	hit_time = maxf(0.0, hit_time - delta / Engine.time_scale)
+	hit_time = maxf(0.0, hit_time - player.focus.real_delta(delta))
 	hit_marker.visible = hit_time > 0.0
 	weapon_status.text = player.combat.status_text() if player.inventory.current_item() != null else ""
 	if is_instance_valid(player.target):

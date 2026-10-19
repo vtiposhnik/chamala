@@ -4,7 +4,7 @@ extends RefCounted
 
 var definition: WeaponDefinition
 var rounds: int
-## Scaled world seconds; survives switching and transfer back into the world.
+## Player-action seconds; survives switching and transfer back into the world.
 var attack_cooldown: float = 0.0
 
 func _init(data: WeaponDefinition) -> void:

@@ -46,6 +46,7 @@ func definition(id: String) -> WeaponDefinition:
 func give(id: String) -> ItemInstance:
 	var item := ItemInstance.new(definition(id))
 	player.inventory.add_item(item)
+	await frames(10) # Allow the short, action-clock equip interval.
 	return item
 
 func body_at(id: String, at: Vector3) -> WorldItem:
@@ -129,7 +130,7 @@ func test_targeting_and_viewmodel() -> void:
 	await frames(2)
 	player.update_target()
 	check(player.target == null, "forgiving targeting cannot reach through wall")
-	var held := give("chair")
+	var held := await give("chair")
 	player.global_position = Vector3(0, 0, 9.35)
 	player.set_physics_process(true)
 	await frames(4)
@@ -140,18 +141,18 @@ func test_targeting_and_viewmodel() -> void:
 
 func test_pistol() -> void:
 	await fixture()
-	var pistol := give("pistol")
+	var pistol := await give("pistol")
 	click("primary")
 	check(dummy.health.current == 80.0 and pistol.rounds == 11, "pistol hitscan deals 20 and consumes one round")
 	click("primary")
 	check(dummy.health.current == 80.0 and pistol.rounds == 11, "pistol rejects shots during cooldown")
-	give("frying_pan")
+	await give("frying_pan")
 	player.inventory.select(0)
 	click("primary")
 	check(pistol.rounds == 11, "slot switching cannot bypass pistol cooldown")
 	await frames(22)
 	click("primary")
-	check(dummy.health.current == 60.0 and pistol.rounds == 10, "pistol can fire again at approximately 3 Hz")
+	check(dummy.health.current == 60.0 and pistol.rounds == 10, "pistol can fire again at the configured firing interval")
 	pistol.rounds = 0
 	await frames(22)
 	click("primary")
@@ -168,11 +169,12 @@ func test_pistol() -> void:
 	check(pistol.rounds == 3, "switching away cancels unfinished reload")
 	player.inventory.select(0)
 	player.focus.set_active(true)
+	await frames(15)
 	click("primary")
-	await frames(22)
+	await frames(12)
 	click("primary")
 	check(pistol.rounds == 2, "Focus stretches weapon cooldown in real time")
-	await frames(190)
+	await frames(10)
 	click("primary")
 	check(pistol.rounds == 1, "scaled cooldown eventually completes during Focus")
 	player.focus.set_active(false)
@@ -195,7 +197,7 @@ func test_pistol() -> void:
 
 func test_pan() -> void:
 	await fixture()
-	var pan := give("frying_pan")
+	var pan := await give("frying_pan")
 	player.global_position = Vector3(0, 0, -5.4)
 	player.head.look_at(dummy.get_node("Body").global_position)
 	await frames(2)
@@ -231,7 +233,7 @@ func test_pan() -> void:
 	player.head.rotation = Vector3.ZERO
 	click("primary")
 	check(dummy.health.current == 75.0, "pan cannot hit a target behind the player")
-	check(pan.definition.attacks_per_second == 1.6, "pan recovery uses requested 1.6 swings per second")
+	check(pan.definition.attacks_per_second == 2.0, "pan recovery uses requested 2 swings per second")
 	player.global_position = Vector3(5, 0, 4)
 	player.rotation = Vector3.ZERO
 	player.head.rotation = Vector3.ZERO
@@ -243,9 +245,11 @@ func test_pan() -> void:
 	check(incoming.launch_owner == player and incoming.linear_velocity.z < -5.0, "physical incoming projectile contact triggers parry and reflection")
 	await frames(39)
 	player.focus.set_active(true)
+	await frames(15)
 	click("secondary")
-	await frames(60)
-	check(player.combat.behavior.parry_remaining > 0.14, "Focus keeps parry timing on the world clock")
+	await frames(6)
+	check(player.combat.behavior.parry_remaining > 0.14, "Focus uses the faster player-action clock for parry")
+	check(player.combat.try_parry(player.camera.global_position - player.camera.global_basis.z), "frontal attack can be parried during Focus")
 	player.focus.set_active(false)
 	await frames(40)
 	var prop := body_at("pistol", Vector3(5, 1.6, 2.5))
@@ -259,7 +263,7 @@ func test_throwing() -> void:
 	await fixture()
 	player.global_position = Vector3(0, 0, -2)
 	player.head.rotation = Vector3.ZERO
-	var ball := give("baseball")
+	var ball := await give("baseball")
 	action("primary")
 	await frames(61)
 	check(player.inventory.current_item() == ball and player.combat.behavior.charge_fraction() == 1.0, "held LMB charges baseball without consuming it")
@@ -291,7 +295,7 @@ func test_throwing() -> void:
 	await fixture()
 	player.global_position = Vector3(0, 0, 5)
 	player.head.rotation = Vector3.ZERO
-	give("baseball")
+	await give("baseball")
 	click("secondary")
 	var toss: WorldItem = get_nodes_in_group("world_items")[0]
 	await frames(2)
@@ -309,22 +313,25 @@ func test_throwing() -> void:
 	await fixture()
 	player.global_position = Vector3(0, 0, 6)
 	player.head.rotation = Vector3.ZERO
-	var chair := give("chair")
+	var chair := await give("chair")
 	click("throw")
 	var heavy: WorldItem = get_nodes_in_group("world_items")[0]
 	await frames(2)
 	check(heavy.item == chair and heavy.linear_velocity.z < -1.0 and heavy.linear_velocity.length() < 5.0, "generic throw uses a mass-dependent impulse for chair")
 	check(player.inventory.current_item() == null, "generic throw is independent of primary/secondary behaviors")
-	var retained := give("baseball")
+	var retained := await give("baseball")
 	player.global_position = Vector3(0, 0, 9)
 	player.rotation.y = PI
 	await frames(2)
-	check(not player.throw_selected() and player.inventory.current_item() == retained, "blocked throw keeps inventory intact")
+	check(player.throw_selected() and player.inventory.current_item() == null, "nearby wall permits a safe physical throw")
+	check(get_nodes_in_group("world_items").any(func(body): return body.item == retained), "wall throw retains object identity in the world")
 	player.global_position = Vector3(0, 0, 6)
 	player.rotation.y = 0
+	var charging_ball := await give("baseball")
 	player.focus.set_active(true)
+	await frames(15)
 	action("primary")
 	await frames(60)
-	check(player.combat.behavior.charge_fraction() > 0.08 and player.combat.behavior.charge_fraction() < 0.12, "baseball charge uses world time in Focus")
+	check(player.combat.behavior.charge_fraction() > 0.78 and player.combat.behavior.charge_fraction() < 0.82, "baseball charge runs at 80 percent in Focus")
 	player.set_mouse_captured(false)
-	check(not player.combat.behavior.charging and player.inventory.current_item() == retained, "mouse release cancels charge without losing the object")
+	check(not player.combat.behavior.charging and player.inventory.current_item() == charging_ball, "mouse release cancels charge without losing the object")

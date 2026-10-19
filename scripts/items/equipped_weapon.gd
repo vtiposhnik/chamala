@@ -11,6 +11,7 @@ var duration: float = 0.1
 var charge: float = 0.0
 
 func _ready() -> void:
+	actor = get_parent().get_parent().get_parent()
 	# An isolated transparent pass gives held objects their own depth buffer.
 	# Arena walls can neither clip nor hide the model; it has no physical body.
 	var layer := CanvasLayer.new()
@@ -96,7 +97,7 @@ func cancel_animation() -> void:
 		flash.visible = false
 
 func _process(delta: float) -> void:
-	remaining = maxf(0.0, remaining - delta)
+	remaining = maxf(0.0, remaining - actor.focus.action_delta(delta))
 	mount.transform = transform
 	mount.position.z += charge * 0.16
 	flash.visible = item != null and animation == &"shoot" and remaining > duration * 0.6
@@ -104,6 +105,8 @@ func _process(delta: float) -> void:
 		var progress := 1.0 - remaining / duration
 		var wave := sin(progress * PI)
 		match animation:
+			&"switch":
+				mount.position.y -= (1.0 - progress) * 0.12
 			&"shoot":
 				mount.position.z += (1.0 - progress) * 0.1
 				mount.rotation.x += (1.0 - progress) * 0.12

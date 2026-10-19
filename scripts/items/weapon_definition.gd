@@ -39,6 +39,16 @@ enum EnemyRole { GRUNT, SCAVENGER, BRUTE }
 @export var throw_max_speed: float = 20.0
 @export var throw_spin: float = 3.0
 @export var throw_grace_seconds: float = 0.18
+@export var throw_recovery: float = 0.22
+
+func create_world_shape() -> Shape3D:
+	if kind == Kind.BASEBALL:
+		var sphere := SphereShape3D.new()
+		sphere.radius = collision_size.x * 0.5
+		return sphere
+	var box := BoxShape3D.new()
+	box.size = collision_size
+	return box
 
 func can_be_used_by(role: EnemyRole) -> bool:
 	return role in compatible_roles

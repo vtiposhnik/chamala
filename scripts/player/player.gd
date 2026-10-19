@@ -12,7 +12,9 @@ signal parry_confirmed
 @export var jump_speed: float = 5.0
 @export var mouse_sensitivity: float = 0.0022
 @export var pickup_distance: float = 3.4
-@export var drop_distance: float = 1.5
+@export var release_distance: float = 1.5
+@export_range(0.005, 0.1, 0.005) var release_margin: float = 0.02
+@export var throw_aim_distance: float = 50.0
 @export_range(0.05, 0.5) var pickup_radius: float = 0.24
 @export var push_force: float = 65.0
 @export var push_response: float = 18.0
@@ -49,8 +51,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pickup"):
 		update_target()
 		pick_up_target()
-	if event.is_action_pressed("drop"):
-		drop_selected()
+	if event.is_action_pressed("focus"):
+		# Input policy is separate from the clock. A future hold option can call
+		# set_active(event.pressed) here without changing any timing consumers.
+		focus.toggle()
 	if event.is_action_pressed("throw"):
 		throw_selected()
 	if event.is_action_pressed("primary"):
@@ -77,26 +81,23 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	var captured := mouse_captured
-	# Focus scales the world clock. Character displacement and camera stay on real time.
-	# delta was generated at the OLD scale; change Focus only after this movement tick.
-	var time_scale := Engine.time_scale
-	var real_delta := delta / time_scale
+	var movement_delta := focus.movement_delta(delta)
+	var movement_ratio := movement_delta / delta
 	var axes := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if captured else Vector2.ZERO
 	var direction := global_basis * Vector3(axes.x, 0, axes.y)
-	motion.x = move_toward(motion.x, direction.x * move_speed, acceleration * real_delta)
-	motion.z = move_toward(motion.z, direction.z * move_speed, acceleration * real_delta)
+	motion.x = move_toward(motion.x, direction.x * move_speed, acceleration * movement_delta)
+	motion.z = move_toward(motion.z, direction.z * move_speed, acceleration * movement_delta)
 	if is_on_floor():
 		motion.y = -0.1
 		if captured and Input.is_action_just_pressed("jump"):
 			motion.y = jump_speed
 	else:
-		motion.y -= 9.8 * real_delta
-	velocity = motion / time_scale
+		motion.y -= 9.8 * movement_delta
+	velocity = motion * movement_ratio
 	move_and_slide()
-	motion = velocity * time_scale
-	push_contacts(direction * move_speed, delta)
+	motion = velocity / movement_ratio
+	push_contacts(direction * move_speed * focus.movement_scale(), delta)
 	update_target()
-	focus.set_active(captured and Input.is_action_pressed("focus"))
 
 func push_contacts(desired_velocity: Vector3, delta: float) -> void:
 	var pushed: Dictionary = {}
@@ -184,7 +185,7 @@ func pick_up_target() -> bool:
 	if not is_instance_valid(target) or not target.can_pick_up():
 		return false
 	if inventory.is_full():
-		notice.emit("Inventory full · press G to drop your selected object")
+		notice.emit("Inventory full · press F to throw your selected object")
 		return false
 	var instance := target.claim()
 	if instance == null:
@@ -196,52 +197,38 @@ func pick_up_target() -> bool:
 	target_changed.emit(null)
 	return true
 
-func drop_selected() -> bool:
-	return release_selected(false)
-
 func throw_selected(power: float = 1.0, underhand: bool = false) -> bool:
-	return release_selected(true, power, underhand)
-
-func release_selected(thrown: bool, power: float = 1.0, underhand: bool = false) -> bool:
 	var instance := inventory.current_item()
 	if instance == null:
 		notice.emit("Empty slot · look at an object and press E")
 		return false
-	var forward := -camera.global_basis.z
-	var origin := camera.global_position
-	var destination := origin + forward * drop_distance
-	# Sweep a conservative enclosing sphere. A wall, floor, dummy or item blocks the drop.
-	var sphere := SphereShape3D.new()
-	sphere.radius = instance.definition.collision_size.length() * 0.5 + 0.04
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.shape = sphere
-	query.transform = Transform3D(Basis.IDENTITY, origin)
-	query.motion = destination - origin
-	query.collision_mask = 1 | 4 | 8
-	var space := get_world_3d().direct_space_state
-	var fractions := space.cast_motion(query)
-	var blocked := not space.intersect_shape(query, 1).is_empty() or (not fractions.is_empty() and fractions[0] < 1.0)
-	query.transform.origin = destination
-	query.motion = Vector3.ZERO
-	query.collision_mask = 1 | 2 | 4 | 8 # Destination must also clear the player's capsule.
-	blocked = blocked or not space.intersect_shape(query, 1).is_empty()
-	if blocked:
-		notice.emit("Make a little room · look ahead into clear space")
+	if not combat.can_throw():
 		return false
+	var forward := -camera.global_basis.z
+	var placement := ReleasePlacement.find(self, instance.definition, release_distance, release_margin)
+	if placement.is_empty():
+		notice.emit("No safe release position · weapon kept")
+		return false
+	# Side releases converge on the camera's aim instead of shooting a parallel
+	# path that misses a nearby prop. This does not bypass any physical collisions.
+	var origin := camera.global_position
+	var aim := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(origin, origin + forward * throw_aim_distance, 1 | 4 | 8))
+	var aim_point: Vector3 = aim.position if not aim.is_empty() else origin + forward * throw_aim_distance
+	var toward_aim: Vector3 = aim_point - placement.transform.origin
+	if toward_aim.dot(forward) > release_margin:
+		forward = toward_aim.normalized()
 	var body := WorldItem.new()
 	body.initialize(instance)
 	get_tree().current_scene.get_node("Objects").add_child(body)
-	body.global_position = destination
-	body.rotation.y = rotation.y
+	body.global_transform = placement.transform
 	body.interaction_delay = 0.25
-	if thrown:
-		var direction := (forward + Vector3.UP * 0.35).normalized() if underhand else forward
-		body.launch(direction, clampf(power, 0.1, 1.0), self)
-		body.damage_reported.connect(confirm_hit)
-	else:
-		body.linear_velocity = forward * 1.2
+	var direction := (forward + Vector3.UP * 0.35).normalized() if underhand else forward
+	body.launch(direction, clampf(power, 0.1, 1.0), self)
+	body.damage_reported.connect(confirm_hit)
+	instance.attack_cooldown = maxf(instance.attack_cooldown, instance.definition.throw_recovery)
 	inventory.remove_selected()
-	notice.emit(("Threw " if thrown else "Dropped ") + instance.definition.display_name)
+	combat.begin_throw(instance.definition.throw_recovery)
+	notice.emit("Threw " + instance.definition.display_name)
 	return true
 
 func confirm_hit(damage: float) -> void:
@@ -249,7 +236,10 @@ func confirm_hit(damage: float) -> void:
 		hit_confirmed.emit(damage)
 
 func _on_selection_changed(_index: int, instance: ItemInstance) -> void:
+	if equipped.item == instance:
+		return
 	if instance == null:
 		equipped.unequip()
 	else:
 		equipped.equip(instance)
+		equipped.animate_action(&"switch", combat.switch_seconds)

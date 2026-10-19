@@ -18,6 +18,7 @@ var reflection_pending: bool = false
 var pending_impulse: Vector3 = Vector3.ZERO
 var pending_torque: Vector3 = Vector3.ZERO
 var flight_samples: Array[Vector3] = []
+@onready var clock: FocusController = get_tree().get_first_node_in_group("focus_clock")
 
 func initialize(instance: ItemInstance) -> void:
 	item = instance
@@ -35,14 +36,7 @@ func initialize(instance: ItemInstance) -> void:
 	material.friction = item.definition.friction
 	physics_material_override = material
 	var collider := CollisionShape3D.new()
-	if item.definition.kind == WeaponDefinition.Kind.BASEBALL:
-		var sphere := SphereShape3D.new()
-		sphere.radius = item.definition.collision_size.x * 0.5
-		collider.shape = sphere
-	else:
-		var box := BoxShape3D.new()
-		box.size = item.definition.collision_size
-		collider.shape = box
+	collider.shape = item.definition.create_world_shape()
 	add_child(collider)
 	visual = ItemVisual.new()
 	visual.build(item.definition)
@@ -50,8 +44,8 @@ func initialize(instance: ItemInstance) -> void:
 	add_to_group("world_items")
 
 func _physics_process(delta: float) -> void:
-	interaction_delay = maxf(0.0, interaction_delay - delta / Engine.time_scale)
-	item.attack_cooldown = maxf(0.0, item.attack_cooldown - delta)
+	interaction_delay = maxf(0.0, interaction_delay - (clock.real_delta(delta) if clock else delta))
+	item.attack_cooldown = maxf(0.0, item.attack_cooldown - (clock.action_delta(delta) if clock else delta))
 	if is_instance_valid(launch_owner):
 		owner_grace = maxf(0.0, owner_grace - delta)
 		var clearance := item.definition.collision_size.length() * 0.5 + 1.05

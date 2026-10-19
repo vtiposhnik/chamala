@@ -58,7 +58,7 @@ func run() -> void:
 	key_action("previous_slot")
 	check(player.inventory.selected_index == 4, "wheel previous wraps to last slot")
 	key_action("slot_1")
-	check(not player.drop_selected(), "dropping an empty slot is safe")
+	check(not player.throw_selected(), "throwing an empty slot is safe")
 	await frames(240)
 	for body in get_nodes_in_group("world_items"):
 		check(body.global_position.y > -0.1 and body.global_position.y < 1.2, "falling object settles above floor")
@@ -97,47 +97,49 @@ func run() -> void:
 	player.global_position = Vector3(8.7, 0, 6)
 	player.rotation.y = -PI / 2.0
 	await frames(2)
-	check(not player.drop_selected() and player.inventory.current_item() == collected[0], "wall-obstructed drop retains inventory item")
+	check(not player.throw_selected() and player.inventory.current_item() == collected[0], "equip delay retains newly selected item until ready")
 	player.global_position = Vector3(0, 0, 8)
 	player.rotation.y = 0
+	await frames(10)
+	check(player.throw_selected(), "clear-space throw succeeds")
 	await frames(2)
-	check(player.drop_selected(), "clear-space drop succeeds")
-	await frames(2)
-	check(player.inventory.current_item() == null and player.equipped.item == null, "drop clears slot and equipped model")
-	check(get_nodes_in_group("world_items").size() == 6, "drop restores exactly one physical representation")
-	var dropped: WorldItem
+	check(player.inventory.current_item() == null and player.equipped.item == null, "throw clears slot and equipped model")
+	check(get_nodes_in_group("world_items").size() == 6, "throw restores exactly one physical representation")
+	var released: WorldItem
 	for body in get_nodes_in_group("world_items"):
 		if body.item == collected[0]:
-			dropped = body
-	check(dropped != null and dropped.item.rounds == 7, "mutable item state survives dropping")
-	check(not dropped.can_pick_up(), "drop prevents immediate accidental repickup")
+			released = body
+	check(released != null and released.item.rounds == 7, "mutable item state survives throwing")
+	check(not released.can_pick_up(), "throw prevents immediate accidental repickup")
 	await frames(20)
-	check(dropped.can_pick_up(), "dropped object becomes recoverable")
+	check(released.can_pick_up(), "released object becomes recoverable")
 	# A real ray cannot select an item behind an arena wall.
-	dropped.freeze = true
-	dropped.global_position = Vector3(0, 1.65, 11)
+	released.freeze = true
+	released.global_position = Vector3(0, 1.65, 11)
 	player.global_position = Vector3(0, 0, 8.5)
 	player.rotation.y = PI
 	await frames(2)
 	player.update_target()
 	check(player.target == null, "arena collision occludes pickup ray")
-	dropped.global_position = Vector3(-7, 5, 4)
-	dropped.freeze = false
-	dropped.linear_velocity = Vector3.ZERO
-	dropped.angular_velocity = Vector3.ZERO
+	released.global_position = Vector3(-7, 5, 4)
+	released.freeze = false
+	released.linear_velocity = Vector3.ZERO
+	released.angular_velocity = Vector3.ZERO
 	await frames(12)
-	var normal_fall := 5.0 - dropped.global_position.y
-	dropped.freeze = true
-	dropped.global_position = Vector3(-7, 5, 4)
+	var normal_fall := 5.0 - released.global_position.y
+	released.freeze = true
+	released.global_position = Vector3(-7, 5, 4)
 	await frames(2)
 	player.focus.set_active(true)
-	dropped.freeze = false
-	dropped.linear_velocity = Vector3.ZERO
+	await frames(15)
+	released.freeze = false
+	released.linear_velocity = Vector3.ZERO
 	await frames(12)
-	var slow_fall := 5.0 - dropped.global_position.y
-	check(is_equal_approx(Engine.time_scale, 0.1), "Focus sets configured time scale")
+	var slow_fall := 5.0 - released.global_position.y
+	check(is_equal_approx(Engine.time_scale, 0.15), "Focus sets configured time scale")
 	check(normal_fall > 0.05 and slow_fall < normal_fall * 0.15, "Focus measurably slows gravity-driven objects")
 	player.focus.set_active(false)
+	await frames(15)
 	check(is_equal_approx(Engine.time_scale, 1.0), "Focus restores normal simulation speed")
 	# Compare measured player travel under the same real-time input duration.
 	player.global_position = Vector3(6, 0, 6)
@@ -150,11 +152,12 @@ func run() -> void:
 	Input.action_release("move_forward")
 	player.global_position = Vector3(6, 0, 6)
 	player.motion = Vector3.ZERO
-	Input.action_press("focus")
+	key_action("focus")
+	await frames(15)
 	Input.action_press("move_forward")
 	await frames(40)
 	var focus_travel := 6.0 - player.global_position.z
-	check(normal_travel > 2.0 and absf(normal_travel - focus_travel) < 0.25, "movement stays responsive during Focus")
+	check(normal_travel > 2.0 and focus_travel / normal_travel > 0.6 and focus_travel / normal_travel < 0.8, "movement is moderately slowed during Focus")
 	var before_pitch := player.pitch
 	var mouse := InputEventMouseMotion.new()
 	mouse.relative = Vector2(20, 10)
@@ -163,6 +166,7 @@ func run() -> void:
 	Input.action_release("move_forward")
 	Input.action_release("focus")
 	player.set_mouse_captured(false)
+	await frames(15)
 	check(is_equal_approx(Engine.time_scale, 1.0), "releasing mouse resets Focus")
 	var dummy := arena.get_node("Dummy")
 	dummy.apply_damage(25.0)
