@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/items/weapon_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"chair"
+display_name = "Chair"
+kind = 2
+color = Color(0.87, 0.38, 0.32, 1)
+mass = 6
+collision_size = Vector3(0.68, 1.16, 0.68)
+bounce = 0.08
+friction = 0.85
+equipped_scale = 0.46
+compatible_roles = Array[int]([2])
+primary_damage = 45
+attacks_per_second = 0.7
+magazine_size = 0
+impact_impulse = 12
+

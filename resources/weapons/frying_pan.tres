@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/items/weapon_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"frying_pan"
+display_name = "Frying Pan"
+kind = 1
+color = Color(0.9, 0.58, 0.23, 1)
+mass = 1.8
+collision_size = Vector3(0.6, 0.12, 0.96)
+bounce = 0.12
+friction = 0.7
+equipped_scale = 0.65
+compatible_roles = Array[int]([1])
+primary_damage = 25
+attacks_per_second = 1.5
+magazine_size = 0
+impact_impulse = 9
+

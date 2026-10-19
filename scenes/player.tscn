@@ -1,0 +1,40 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/items/inventory.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/items/equipped_weapon.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/components/focus.gd" id="4"]
+
+[sub_resource type="CapsuleShape3D" id="Capsule"]
+radius = 0.32
+height = 1.8
+
+[node name="Player" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 13
+floor_snap_length = 0.2
+script = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 0)
+shape = SubResource("Capsule")
+
+[node name="Head" type="Node3D" parent="."]
+position = Vector3(0, 1.65, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Head"]
+current = true
+fov = 78.0
+near = 0.05
+far = 80.0
+
+[node name="WeaponMount" type="Node3D" parent="Head/Camera3D"]
+position = Vector3(0.38, -0.32, -0.78)
+rotation = Vector3(-0.12, -0.18, -0.12)
+script = ExtResource("3")
+
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="Focus" type="Node" parent="."]
+script = ExtResource("4")

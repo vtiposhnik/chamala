@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/items/weapon_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"umbrella"
+display_name = "Umbrella"
+kind = 3
+color = Color(0.62, 0.52, 0.87, 1)
+mass = 0.8
+collision_size = Vector3(0.34, 1.15, 0.34)
+bounce = 0.12
+friction = 0.65
+equipped_scale = 0.52
+compatible_roles = Array[int]([1])
+primary_damage = 15
+attacks_per_second = 2
+magazine_size = 0
+impact_impulse = 5
+
