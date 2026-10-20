@@ -130,3 +130,59 @@ playtest briefs; suggested next steps are not authorization to implement them.
 - **Suggested next steps:** playtest chair weight, umbrella view coverage and pan
   timing; tune the exposed values before choosing another development phase.
   No umbrella gliding, new types, enemies, progression or arenas were implemented.
+
+## Iteration 5 — Low-gravity traversal and momentum experiment
+
+- **Objective/design update:** explore a broader first-person physics-action
+  adventure through a contained movement experiment. Preserve the original arena,
+  object rain, five-slot inventory, object-specific behaviors and Focus tuning.
+- **Implemented:** reusable box gravity zones with low, near-zero and zero strength;
+  smooth spatial boundaries and prioritized overlaps; player momentum, limited
+  camera-relative 3D steering, surface/heavy-prop push-off and inherited throw motion.
+  A separate greybox contains a normal start, enclosed low-G corridor/zero-G pocket,
+  ten-metre broken bridge and visible destination. Checkpoints, fall recovery and
+  debug velocity/gravity/steering information make repeated experiments practical.
+- **Architecture:** Area3D enrolls rigid bodies into GravityResponse, which samples
+  the shared field and restores original gravity/damping after exit. Native Area
+  gravity override stays disabled to prevent double application. Player sampling
+  uses the same GravityZone API through a small InertialMovement component; ordinary
+  FPS movement remains in its existing controller. Gravity is down-only with a
+  vector acceleration API reserved for later extension.
+- **Movement decisions:** 2.5 m/s² air control, 0.03 damping, 6 m/s controlled speed,
+  4 m/s steering reserve; contact/landing replenishes it. This enables corrections
+  without unlimited flight. Push-off adds up to 5 m/s, has a 0.35-movement-second
+  cooldown and requires solid geometry or a ≥3 kg prop. Reactions on props are
+  mass-dependent and bounded. Exiting a field retains airborne inertia until landing.
+- **Physics/Focus:** fields use spatial feathering; transitions do not reset velocity.
+  Nested zero-G blends over underlying low gravity instead of briefly restoring 1g.
+  Objects retain ordinary world-time physics. Player movement keeps the established
+  movement clock and throws inherit 65% of stored velocity, avoiding Focus compensation
+  spikes. Coasting contacts can push props in 3D; grounded contact behavior is preserved.
+- **Scene/controls:** F6 switches fresh arena/traversal scenes, Space jumps/pushes off,
+  look + WASD steers, Backspace restarts the checkpoint with inventory intact, F5
+  resets the entire current scene. Landing at departure/destination sets checkpoints.
+  Falls clear movement/held actions and leave Focus. Fallen props are rescued with
+  original identity and disarmed motion. Preplaced props return locally so the bridge
+  remains populated during longer tests; thrown props return near the checkpoint. The original ten-object arena rain remains;
+  the experimental scene has thirteen comparison/drifting props using existing types.
+- **Files:** added `scenes/traversal.tscn`, `gravity_zone.gd`, `gravity_response.gd`,
+  `inertial_movement.gd`, `traversal_lab.gd`, and `tests/iteration5_test.gd`. Updated
+  player scene/controller, WorldItem launch inheritance, HUD, input map/test runner,
+  README and both development documents. AGENTS records the broader experiment scope.
+- **Validation:** 385 automated checks pass, including all 328 prior checks and 57
+  new traversal checks. Verified field nesting/exit/deletion, zero/near-zero gravity,
+  mass-dependent impulses/drift, finite 3D steering, wall/heavy-prop push-off, coasting
+  contact impulses, Focus movement speed, inherited throws and recovery, checkpoints,
+  prop rescue and scene switching. Actual run-and-jump bridge crossings succeed in
+  normal time and with Focus entered/exited in midair across a field boundary. Normal
+  crossing peaks at about 8.9 m and lands inside the destination backstop. Linux
+  Compatibility renders were inspected for the start, corridor and bridge/HUD.
+- **Known limits:** this is a static, down-gravity greybox feel experiment, not a new
+  full mode. Push-off uses short rays, steering is finite, and gravity samples collider
+  centers. Area enrollment can take a physics tick. Arena dummy gravity is unchanged;
+  props/projectiles and the player support zones. F6 starts fresh and does not transfer
+  inventory between labs. Windows and subjective movement feel still need playtests.
+- **Suggested next steps:** collect feedback on inertia, steering reserve, push reach,
+  zone feathering and crossing difficulty; tune exposed values before adding systems.
+  No grappling, enemies, new weapons, sideways gravity, ceiling walking, selective
+  freezing, detailed environments or story were implemented.

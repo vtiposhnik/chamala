@@ -18,7 +18,7 @@ run_check() {
 }
 
 run_check --editor --import --quit
-for suite in milestone_test combat_test iteration3_test iteration4_test; do
+for suite in milestone_test combat_test iteration3_test iteration4_test iteration5_test; do
     run_check --fixed-fps 60 --script "res://tests/$suite.gd"
 done
 for fps in 30 144; do

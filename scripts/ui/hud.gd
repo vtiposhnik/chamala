@@ -13,11 +13,13 @@ var weapon_status: Label
 var debug_info: Label
 var hit_marker: Label
 var hit_time: float = 0.0
+var traversal_lab: bool = false
 const MINT := Color("80f3cd")
 
 func _ready() -> void:
 	layer = 2 # Above the dedicated held-weapon pass.
 	player = get_parent().get_node("Player")
+	traversal_lab = get_parent().has_method("respawn_player")
 	var root := Control.new()
 	root.name = "Layout"
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -26,7 +28,7 @@ func _ready() -> void:
 	var title := label("OBJECT / RAIN", 26, Color("e4eaf0"))
 	title.position = Vector2(32, 25)
 	root.add_child(title)
-	var subtitle := label("OBJECT INTERACTIONS     /     ITERATION 04", 12, Color("9aabba"))
+	var subtitle := label(("TRAVERSAL EXPERIMENT" if traversal_lab else "OBJECT INTERACTIONS") + "     /     ITERATION 05", 12, Color("9aabba"))
 	subtitle.position = Vector2(34, 61)
 	root.add_child(subtitle)
 	status = label("●  REAL TIME", 18, MINT)
@@ -78,7 +80,10 @@ func _ready() -> void:
 		panel.add_child(text)
 		slot_labels.append(text)
 		slot_panels.append(panel)
-	var help := label("WASD / SPACE Move   E Pickup   F Throw   1–5 / WHEEL Equip   SHIFT Focus   L Launcher   J Shot   K Position   T Restore   F5 Reset   ESC Mouse", 13, Color("a6b6c4"))
+	var help_text := "WASD / SPACE Move   E Pickup   F Throw   1–5 / WHEEL Equip   SHIFT Focus   L / J / K Launcher   T Restore   F5 Reset   F6 Traversal"
+	if traversal_lab:
+		help_text = "WASD Steer   SPACE Jump / Push off   E Pickup   F Throw   1–5 Equip   SHIFT Focus   BACKSPACE Checkpoint   F5 Reset   F6 Arena"
+	var help := label(help_text, 13, Color("a6b6c4"))
 	root.add_child(help)
 	help.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	help.offset_left = -600
@@ -101,7 +106,7 @@ func _ready() -> void:
 		hit_time = 0.35
 	)
 	refresh_inventory()
-	show_notice("Ten objects. Five slots. Press Shift to toggle Focus.")
+	show_notice("Ten objects. Five slots. F6 opens the traversal experiment." if not traversal_lab else "Look + WASD steers in 3D · Space pushes off nearby surfaces")
 
 func label(text: String, font_size: int, color: Color) -> Label:
 	var node := Label.new()
@@ -164,5 +169,9 @@ func _process(delta: float) -> void:
 		debug_info.text = "HELD  %.3f kg" % player.inventory.current_item().definition.mass
 	else:
 		debug_info.text = ""
-	var launcher: ProjectileLauncher = get_parent().get_node("Launcher")
-	debug_info.text += "\nTEST DAMAGE %.1f · HITS %d · BLOCKS %d\nLAUNCHER %s · %s" % [player.damage_taken, player.hits_received, player.blocks, "ON" if launcher.enabled else "OFF", launcher.last_result]
+	var launcher: ProjectileLauncher = get_parent().get_node_or_null("Launcher")
+	if launcher != null:
+		debug_info.text += "\nTEST DAMAGE %.1f · HITS %d · BLOCKS %d\nLAUNCHER %s · %s" % [player.damage_taken, player.hits_received, player.blocks, "ON" if launcher.enabled else "OFF", launcher.last_result]
+	if traversal_lab:
+		var motion := player.motion * player.focus.movement_scale()
+		debug_info.text += "\nVELOCITY  (%.2f, %.2f, %.2f) m/s · SPEED %.2f\nGRAVITY %.2f× · STEER %.1f / %.1f · CHECKPOINT %d" % [motion.x, motion.y, motion.z, motion.length(), player.traversal.gravity_multiplier, player.traversal.remaining_steering, player.traversal.steering_reserve, get_parent().checkpoint_stage]

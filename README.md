@@ -1,14 +1,38 @@
-# Object Rain — iteration 04
+# Object Rain — iteration 05
 
 A Godot 4 first-person physics playground built around **unique, situational object
-interactions**, not a primary/secondary attack template for every object.
+interactions** and an experimental first-person physics-action adventure direction.
 
 ## Run
 
 Import `project.godot` with **Godot 4.6.x Standard** (tested with 4.6.3), then press
 F5; or run `godot --path .`. No plugins, .NET, external assets or services needed.
-The test arena keeps ten falling props and five inventory slots. Thirty random
-objects is the long-term game premise; this iteration preserves existing rain.
+The original arena remains the default. Press **F6** for the new traversal experiment,
+or open `scenes/traversal.tscn` directly. The arena keeps ten falling props and five
+inventory slots. Thirty random objects is the long-term game premise; existing rain
+is preserved.
+
+## Iteration 5: traversal experiment
+
+A normal starting platform leads into an enclosed low-gravity corridor, a zero-G
+pocket and a broken bridge. Existing objects drift, collide, bounce and retain their
+mass-dependent impulse responses. Throws inherit some player movement momentum.
+
+- **Look + WASD:** steer in three dimensions while airborne, with inertia and a
+  limited steering reserve. Landing or pushing off replenishes the reserve.
+- **Space:** jump from the floor or push off a nearby surface/heavy prop. There are
+  no free-space jumps. Look toward a surface and get close to push away from it.
+- **Shift:** existing Focus (15% world / 75% movement / 80% actions / 100% look).
+- **Backspace:** return to the latest checkpoint, retaining inventory. Falling also
+  respawns the player; fallen objects are rescued with the same identity.
+- **F5:** reset the whole current experiment. **F6:** switch labs; the selected lab
+  starts fresh, including its inventory.
+
+Run forward and jump near the bridge edge to cross. The destination's backstop
+catches overshoots. The HUD shows velocity, gravity, steering reserve and checkpoint.
+Air acceleration, damping, controlled speed, push strength, throw inheritance and
+field strengths/boundaries are exposed in the Inspector. See the configuration table
+in [CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
 ## Controls and objects
 
@@ -25,7 +49,9 @@ objects is the long-term game premise; this iteration preserves existing rain.
 | Hold-release LMB / RMB — baseball | Charge and throw / underhand toss |
 | L / J / K | Toggle launcher / single shot / place front, side, rear |
 | T | Restore all three dummies and clear player test damage/block counters |
-| F5 inside game | Reset arena, inventory, rain and launcher |
+| Backspace | Traversal checkpoint restart, keeping inventory |
+| F5 inside game | Reset current scene and inventory |
+| F6 | Switch arena / traversal, with a fresh scene |
 | Escape / click | Release/capture mouse |
 
 Chair and umbrella have no secondary attack. Contextual hints show supported actions.
@@ -46,7 +72,20 @@ K, and aims each shot at the player. Props can intercept its shots.
 
 ## Testing
 
-Try these in normal time and Focus:
+Traversal playtest:
+
+1. Press F6. Compare normal walking/jumping on the start platform with movement in
+   the corridor. Release WASD in the air; momentum should persist.
+2. Jump in the zero-G pocket, look up/down and steer gently. Near a wall, ceiling
+   or chair, press Space to push off. Try the same in open space and beside a baseball.
+3. Pick up and throw objects while drifting. Recover them; compare chair/baseball
+   motion. Toggle Focus while airborne and while objects cross field boundaries.
+4. Reach the bridge checkpoint. Run and jump toward the marked destination. Repeat
+   in Focus; try entering/exiting Focus mid-flight. Backspace retries the crossing.
+5. Fall deliberately, throw a prop into the gap, and confirm respawn/recovery.
+   F5 resets everything. F6 returns to the original arena and its testing tools.
+
+Arena regression playtest, in normal time and Focus:
 
 1. Collect a chair, aim at the three dummies and LMB throw. Observe damage and
    sliding knockback; recover the same chair. T restores dummy positions/health.
@@ -69,14 +108,17 @@ godot --headless --path . --fixed-fps 60 --script res://tests/milestone_test.gd
 godot --headless --path . --fixed-fps 60 --script res://tests/combat_test.gd
 godot --headless --path . --fixed-fps 60 --script res://tests/iteration3_test.gd
 godot --headless --path . --fixed-fps 60 --script res://tests/iteration4_test.gd
+godot --headless --path . --fixed-fps 60 --script res://tests/iteration5_test.gd
 godot --headless --path . --fixed-fps 30 --script res://tests/frame_clock_test.gd
 godot --headless --path . --fixed-fps 144 --script res://tests/frame_clock_test.gd
 ```
 
-The full suite passes 328 checks. Tests use the real arena; failed assertions return
-nonzero status. Coverage includes action
-clocks, inventory identity, safe release, physical impacts, shield directions,
-reflection into targets, thin-wall CCD/sweep safety, ownership and cleanup.
+The full suite passes 385 checks. Tests use the real scenes; failed assertions return
+nonzero status. Coverage includes action clocks, inventory identity, safe release, physical impacts, shield directions,
+reflection into targets, thin-wall CCD/sweep safety, ownership and cleanup. New
+traversal checks cover nested fields, zero/near-zero gravity, rigid momentum and mass,
+3D steering limits, surface/prop push-off, Focus, inherited throws, checkpoints and
+actual bridge crossings in normal time and Focus.
 
 ## Developer reference and limits
 
@@ -90,9 +132,11 @@ Launcher interval, limits and projectile data are editable in the Inspector.
 Both development documents must be updated each iteration; completed changes are
 committed and pushed, as recorded in AGENTS.md.
 
-No AI, progression, new levels/types, Focus meter, umbrella gliding or simulated
-pistol bullets. The dummy stays upright while sliding; the player has test counters
-instead of a death loop. Shield protection uses an angle check, not mesh collisions.
+No AI, progression, production levels/new object types, Focus meter, umbrella gliding
+or simulated pistol bullets. Traversal uses static downward gravity fields, finite steering and
+short push-off rays; no grappling, climbing, gravity reversal or selective freezing.
+Its feel and tuning are experimental. The dummy stays upright while sliding; the
+player has test counters instead of a death loop. Shield protection uses an angle check, not mesh collisions.
 The launcher model is decorative. Extremely cramped releases can fail while keeping
 the item. Visuals are placeholders, with no audio system or detailed hands.
 

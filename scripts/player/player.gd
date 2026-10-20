@@ -25,6 +25,7 @@ signal parry_confirmed
 @onready var equipped: EquippedWeapon = $Head/Camera3D/WeaponMount
 @onready var focus: FocusController = $Focus
 @onready var combat: CombatController = $Combat
+@onready var traversal: InertialMovement = $Traversal
 
 var damage_taken: float = 0.0
 var hits_received: int = 0
@@ -40,6 +41,13 @@ func _ready() -> void:
 	set_mouse_captured(true)
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("switch_lab"):
+		var scene := "res://scenes/arena.tscn" if get_tree().current_scene.has_method("respawn_player") else "res://scenes/traversal.tscn"
+		get_tree().call_deferred("change_scene_to_file", scene)
+		return
+	if event.is_action_pressed("checkpoint_restart") and get_tree().current_scene.has_method("respawn_player"):
+		get_tree().current_scene.respawn_player()
+		return
 	if event.is_action_pressed("release_mouse"):
 		set_mouse_captured(not mouse_captured)
 		get_viewport().set_input_as_handled()
@@ -90,21 +98,29 @@ func _physics_process(delta: float) -> void:
 	var movement_ratio := movement_delta / delta
 	var axes := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if captured else Vector2.ZERO
 	var direction := global_basis * Vector3(axes.x, 0, axes.y)
-	motion.x = move_toward(motion.x, direction.x * move_speed, acceleration * movement_delta)
-	motion.z = move_toward(motion.z, direction.z * move_speed, acceleration * movement_delta)
-	if is_on_floor():
-		motion.y = -0.1
+	traversal.update_field(movement_delta)
+	if traversal.airborne:
+		traversal.integrate(axes, movement_delta)
 		if captured and Input.is_action_just_pressed("jump"):
-			motion.y = jump_speed
+			traversal.try_push_off()
 	else:
-		motion.y -= 9.8 * movement_delta
+		motion.x = move_toward(motion.x, direction.x * move_speed, acceleration * movement_delta)
+		motion.z = move_toward(motion.z, direction.z * move_speed, acceleration * movement_delta)
+		if is_on_floor():
+			motion.y = -0.1
+			if captured and Input.is_action_just_pressed("jump"):
+				motion.y = jump_speed
+				traversal.airborne = traversal.gravity_multiplier < 0.999
+		else:
+			motion += GravityZone.acceleration_for(traversal.gravity_multiplier) * movement_delta
+	var contact_velocity := motion * focus.movement_scale() if traversal.airborne else direction * move_speed * focus.movement_scale()
 	velocity = motion * movement_ratio
 	move_and_slide()
 	motion = velocity / movement_ratio
-	push_contacts(direction * move_speed * focus.movement_scale(), delta)
+	push_contacts(contact_velocity, delta, traversal.airborne)
 	update_target()
 
-func push_contacts(desired_velocity: Vector3, delta: float) -> void:
+func push_contacts(desired_velocity: Vector3, delta: float, allow_vertical: bool = false) -> void:
 	var pushed: Dictionary = {}
 	for index in get_slide_collision_count():
 		var collision := get_slide_collision(index)
@@ -113,8 +129,8 @@ func push_contacts(desired_velocity: Vector3, delta: float) -> void:
 			continue
 		pushed[body.get_instance_id()] = true
 		var normal := collision.get_normal()
-		var direction := Vector3(-normal.x, 0, -normal.z).normalized()
-		if absf(normal.y) > 0.5:
+		var direction := -normal if allow_vertical else Vector3(-normal.x, 0, -normal.z).normalized()
+		if not allow_vertical and absf(normal.y) > 0.5:
 			# The rounded character foot steps onto thin props. Push the leading
 			# edge horizontally, but never a prop already directly under our feet.
 			var offset := body.global_position - global_position
@@ -228,7 +244,8 @@ func throw_selected(power: float = 1.0, underhand: bool = false) -> bool:
 	body.global_transform = placement.transform
 	body.interaction_delay = 0.25
 	var direction := (forward + Vector3.UP * 0.35).normalized() if underhand else forward
-	body.launch(direction, clampf(power, 0.1, 1.0), self)
+	var inherited := motion * traversal.throw_inheritance if traversal.airborne or traversal.gravity_multiplier < 0.999 else Vector3.ZERO
+	body.launch(direction, clampf(power, 0.1, 1.0), self, inherited)
 	body.damage_reported.connect(confirm_hit)
 	instance.attack_cooldown = maxf(instance.attack_cooldown, instance.definition.throw_recovery)
 	inventory.remove_selected()

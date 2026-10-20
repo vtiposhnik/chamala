@@ -8,6 +8,10 @@ Object Rain focuses on unique, situational object interactions rather than givin
 every object conventional weapon attacks. Keep capabilities/actions optional and
 contextual hints specific to the equipped object.
 
+The design also explores first-person physics-action adventure and traversal.
+Keep experiments contained and preserve the original arena, object rain, inventory,
+object behaviors and Focus tuning unless the requested iteration changes them.
+
 For every development iteration, update both `docs/DEVELOPMENT_LOG.md` and
 `docs/CURRENT_STATE.md` before finishing. Record verified changes, technical
 decisions, bugs fixed, limitations and suggested next steps. Keep controls and

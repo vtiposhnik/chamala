@@ -5,7 +5,7 @@ config_version=5
 config/name="Object Rain"
 run/main_scene="res://scenes/arena.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
-config/description="Object Rain — unique objects, shields and projectile deflection. Iteration 04."
+config/description="Object Rain — low-gravity traversal and momentum experiment. Iteration 05."
 
 [display]
 window/size/viewport_width=1280
@@ -29,6 +29,16 @@ common/physics_ticks_per_second=60
 3d_physics/layer_5="Projectiles"
 
 [input]
+
+switch_lab={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":4194337)]
+}
+
+checkpoint_restart={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":4194308)]
+}
 
 toggle_launcher={
 "deadzone": 0.2,

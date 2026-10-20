@@ -54,16 +54,16 @@ func _physics_process(delta: float) -> void:
 	if sleeping:
 		projectile_active = false
 
-func launch(direction: Vector3, power: float, user: PhysicsBody3D) -> void:
+func launch(direction: Vector3, power: float, user: PhysicsBody3D, inherited_velocity: Vector3 = Vector3.ZERO) -> void:
 	var data := item.definition
 	sleeping = false
 	var impulse := minf(data.throw_impulse * power, mass * data.throw_max_speed)
 	# A newly added body's server-side mass is synchronized on its first physics
 	# step. Queue the impulse for that step so every mass receives the right delta-v.
-	pending_impulse = direction * impulse
+	pending_impulse = direction * impulse + inherited_velocity * mass
 	# Torque is mass-scaled to avoid extreme spin on the lightest props.
 	pending_torque = Vector3.RIGHT * mass * data.throw_spin * 0.05
-	previous_velocity = direction * impulse / mass
+	previous_velocity = direction * impulse / mass + inherited_velocity
 	flight_samples.assign([previous_velocity])
 	projectile_active = data.thrown_damage > 0.0
 	damage_limit = data.thrown_damage * power
